@@ -1,0 +1,34 @@
+# Worry Parking Lot: v1 Plan
+
+Screens in the order to build them. Each step should leave the app runnable in Expo Go. Rules in [CLAUDE.md](CLAUDE.md) apply to every screen.
+
+## Step 0: Foundation (no screen)
+
+- Replace the starter Home/Explore tabs and template content.
+- Theme (light/dark), shared text and button components, a persistent **crisis button** in the app shell.
+- `src/data/`: SQLite setup, a `worries` table (id, text, parkedAt, unlocksAt, reviewedAt, followUpDueAt, outcome, outcomeAt), and the lock rule enforced in queries.
+- Settings store for the worry window (time, length).
+
+## Screens
+
+1. **Crisis Resources**: Built first because it is required and everything links to it. Static and offline. 988 Suicide & Crisis Lifeline (call and text 988), 911 for immediate danger, a short calm line saying you are not alone. Reachable from every screen.
+2. **Park a Worry**: The main action. A text box, a "Park it" button, and a confirmation that says when it will unlock. The text is not shown again after parking.
+3. **Parking Lot**: Lists parked worries without revealing their text (count, parked time, "unlocks at ..."). Empty state included. This is the home screen.
+4. **Worry Window Setup**: The user picks the daily time and length. Ask for the notification permission here, with a plain explanation of why. Schedule the daily local reminder.
+5. **Daily Review**: Opens when the window is open. Walks through each unlocked worry one at a time. For each: read it, then "Release", or "Keep an eye on it". Marks it reviewed and sets the 7-day follow-up. Closed state shows the time of the next window.
+6. **Follow-up ("Did this actually happen?")**: Shown for worries 7 days after parking. Choices: happened, partly, didn't happen. Gentle copy either way. Reachable from the Parking Lot and from a local notification.
+7. **Scoreboard**: Neutral numbers: worries parked, followed up, and how many came true. A simple list of past worries with outcomes. No interpretation or advice.
+8. **Onboarding**: How it works in three short cards, the not-a-medical-device disclaimer, and the first-time window setup. Shown on first launch. Crisis button still visible.
+9. **Settings**: Edit the window, view the disclaimer, delete one worry or all data (with confirmation), app version.
+
+## Out of scope for v1
+
+Accounts, cloud sync or backup, sharing, widgets, Android, any AI features, analytics.
+
+## Open questions
+
+- Does the 7-day follow-up count from the day it was parked, or from the day it was reviewed? The plan assumes **parked**.
+- Should a worry not reviewed during its window carry over to the next day automatically? The plan assumes **yes**.
+- Is "partly happened" a third outcome, or do we keep it binary? The plan assumes three.
+- Is 988 enough, or do we also want Crisis Text Line (text HOME to 741741)? Confirm numbers against official sources before release. US only for v1.
+- Should worry text be encrypted at rest beyond iOS file protection?
