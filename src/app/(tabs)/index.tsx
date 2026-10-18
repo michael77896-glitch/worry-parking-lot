@@ -1,18 +1,16 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 
+import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { getSettings, listWorries, nextWindowOpen } from '@/data';
+import { formatWhen } from '@/utils/format';
 
 type Summary = { parked: number; nextOpen: Date };
 
-function formatWhen(date: Date) {
-  return date.toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' });
-}
-
-/** Placeholder home screen. The real Parking Lot list arrives in build step 3. */
+/** Interim home screen. The real Parking Lot list arrives in build step 3. */
 export default function ParkingLotScreen() {
   const db = useSQLiteContext();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -39,7 +37,7 @@ export default function ParkingLotScreen() {
         <>
           <ThemedText>
             {summary.parked === 0
-              ? "Nothing is parked right now. When something's on your mind, you'll be able to park it here and come back to it later."
+              ? "Nothing is parked right now. When something's on your mind, you can park it here and come back to it later."
               : `${summary.parked} parked.`}
           </ThemedText>
           <ThemedText themeColor="textSecondary">
@@ -47,6 +45,7 @@ export default function ParkingLotScreen() {
           </ThemedText>
         </>
       )}
+      <Button label="Park a worry" onPress={() => router.push('/park')} />
     </Screen>
   );
 }

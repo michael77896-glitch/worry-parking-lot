@@ -14,7 +14,7 @@ Built: SQLite data layer with the lock rule (tested), window math, settings, tab
 ## Screens
 
 1. **Crisis Resources** (DONE, numbers still need verifying before release): Built first because it is required and everything links to it. Static and offline. 988 Suicide & Crisis Lifeline (call and text 988), 911 for immediate danger, a short calm line saying you are not alone. Reachable from every screen.
-2. **Park a Worry**: The main action. A text box, a "Park it" button, and a confirmation that says when it will unlock. The text is not shown again after parking.
+2. **Park a Worry** (DONE; pushed route `/park` with its own Back link, linked from the Parking Lot): The main action. A text box, a "Park it" button, and a confirmation that says when it will unlock. The text is not shown again after parking.
 3. **Parking Lot**: Lists parked worries without revealing their text (count, parked time, "unlocks at ..."). Empty state included. This is the home screen.
 4. **Worry Window Setup**: The user picks the daily time and length. Ask for the notification permission here, with a plain explanation of why. Schedule the daily local reminder.
 5. **Daily Review**: Opens when the window is open. Walks through each unlocked worry one at a time. For each: read it, then "Release", or "Keep an eye on it". Marks it reviewed and sets the 7-day follow-up. Closed state shows the time of the next window.

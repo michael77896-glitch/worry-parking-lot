@@ -20,7 +20,8 @@ export function Screen({ children }: { children: ReactNode }) {
           styles.content,
           { paddingTop: insets.top + CRISIS_BAR_HEIGHT },
         ]}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets>
         {children}
       </ScrollView>
     </ThemedView>
