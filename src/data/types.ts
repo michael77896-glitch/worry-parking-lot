@@ -17,3 +17,10 @@ export type LockedWorry = WorryBase & { locked: true; text: null };
 export type OpenWorry = WorryBase & { locked: false; text: string };
 
 export type Worry = LockedWorry | OpenWorry;
+
+/** A worry that has not been reviewed yet, described without its text. */
+export type ParkedWorry = {
+  id: number;
+  parkedAt: string;
+  unlocksAt: string;
+};

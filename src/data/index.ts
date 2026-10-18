@@ -1,11 +1,12 @@
 export { migrate } from './migrate';
 export { getSettings, saveSettings } from './settings';
-export type { LockedWorry, OpenWorry, Outcome, Worry } from './types';
+export type { LockedWorry, OpenWorry, Outcome, ParkedWorry, Worry } from './types';
 export {
   FOLLOW_UP_DAYS,
   MAX_WORRY_LENGTH,
   deleteAllData,
   deleteWorry,
+  listParked,
   listWorries,
   markReviewed,
   parkWorry,
@@ -18,6 +19,7 @@ export {
   currentWindow,
   isWindowOpen,
   nextWindowOpen,
+  readableAt,
   validateWindow,
   type WindowSettings,
   type WindowSpan,

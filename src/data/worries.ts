@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Outcome, Worry } from './types';
+import type { Outcome, ParkedWorry, Worry } from './types';
 import { isWindowOpen, nextWindowOpen, type WindowSettings } from './window';
 
 export const MAX_WORRY_LENGTH = 2000;
@@ -69,6 +69,13 @@ export async function listWorries(
   );
   return rows.map((r) =>
     r.text === null ? { ...r, locked: true, text: null } : { ...r, locked: false, text: r.text },
+  );
+}
+
+/** Worries still waiting for review, newest first. Never selects the text column. */
+export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
+  return db.getAllAsync<ParkedWorry>(
+    `SELECT id, parkedAt, unlocksAt FROM worries WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
   );
 }
 

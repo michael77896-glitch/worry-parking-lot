@@ -57,6 +57,16 @@ export function nextWindowOpen(after: Date, s: WindowSettings): Date {
   throw new Error('Could not find the next worry window');
 }
 
+/**
+ * The earliest moment a worry can be read: `now` if the window is open and the worry's
+ * unlock time has passed, otherwise the next window opening at or after its unlock time.
+ */
+export function readableAt(unlocksAt: Date, now: Date, s: WindowSettings): Date {
+  if (unlocksAt <= now && isWindowOpen(now, s)) return now;
+  const from = unlocksAt > now ? unlocksAt : now;
+  return nextWindowOpen(new Date(from.getTime() - 1), s);
+}
+
 export function validateWindow(s: WindowSettings): void {
   if (!Number.isInteger(s.startMinutes) || s.startMinutes < 0 || s.startMinutes > 1439) {
     throw new RangeError('Window start must be a whole number of minutes from 0 to 1439');
