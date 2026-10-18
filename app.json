@@ -1,14 +1,16 @@
 {
   "expo": {
-    "name": "worry-parking-lot",
+    "name": "Worry Parking Lot",
     "slug": "worry-parking-lot",
     "version": "1.0.0",
+    "platforms": ["ios"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "worryparkinglot",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
@@ -36,7 +38,8 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -2,7 +2,9 @@
 
 Screens in the order to build them. Each step should leave the app runnable in Expo Go. Rules in [CLAUDE.md](CLAUDE.md) apply to every screen.
 
-## Step 0: Foundation (no screen)
+## Step 0: Foundation (no screen) — DONE
+
+Built: SQLite data layer with the lock rule (tested), window math, settings, tab shell with the crisis button, theme tokens, shared disclaimer. The starter Home/Explore content and web-only files were removed.
 
 - Replace the starter Home/Explore tabs and template content.
 - Theme (light/dark), shared text and button components, a persistent **crisis button** in the app shell.
@@ -11,7 +13,7 @@ Screens in the order to build them. Each step should leave the app runnable in E
 
 ## Screens
 
-1. **Crisis Resources**: Built first because it is required and everything links to it. Static and offline. 988 Suicide & Crisis Lifeline (call and text 988), 911 for immediate danger, a short calm line saying you are not alone. Reachable from every screen.
+1. **Crisis Resources** (DONE, numbers still need verifying before release): Built first because it is required and everything links to it. Static and offline. 988 Suicide & Crisis Lifeline (call and text 988), 911 for immediate danger, a short calm line saying you are not alone. Reachable from every screen.
 2. **Park a Worry**: The main action. A text box, a "Park it" button, and a confirmation that says when it will unlock. The text is not shown again after parking.
 3. **Parking Lot**: Lists parked worries without revealing their text (count, parked time, "unlocks at ..."). Empty state included. This is the home screen.
 4. **Worry Window Setup**: The user picks the daily time and length. Ask for the notification permission here, with a plain explanation of why. Schedule the daily local reminder.
@@ -32,3 +34,4 @@ Accounts, cloud sync or backup, sharing, widgets, Android, any AI features, anal
 - Is "partly happened" a third outcome, or do we keep it binary? The plan assumes three.
 - Is 988 enough, or do we also want Crisis Text Line (text HOME to 741741)? Confirm numbers against official sources before release. US only for v1.
 - Should worry text be encrypted at rest beyond iOS file protection?
+- iCloud device backups copy app data off the phone. Is that acceptable under "all data stays on the phone", or should we exclude the database from backup?

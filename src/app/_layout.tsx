@@ -1,18 +1,29 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { SQLiteProvider } from 'expo-sqlite';
+import { Suspense } from 'react';
+import { useColorScheme, View } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { CrisisButton } from '@/components/crisis-button';
+import { migrate } from '@/data';
 
-SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
+export default function RootLayout() {
   const colorScheme = useColorScheme();
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      <Suspense fallback={null}>
+        <SQLiteProvider databaseName="worry-parking-lot.db" onInit={migrate} useSuspense>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen
+                name="crisis"
+                options={{ headerShown: true, title: 'Crisis resources', headerBackTitle: 'Back' }}
+              />
+            </Stack>
+            <CrisisButton />
+          </View>
+        </SQLiteProvider>
+      </Suspense>
     </ThemeProvider>
   );
 }

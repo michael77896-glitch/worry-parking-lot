@@ -23,7 +23,10 @@ These override convenience. If a task conflicts with one, stop and ask.
 ## Stack and conventions
 
 - Routes live in `src/app/` (Expo Router); components, hooks, and data code live outside it (`src/components`, `src/hooks`, `src/data`, `src/constants`).
-- Local storage: `expo-sqlite`. Keep all database access behind `src/data/` so screens never write SQL. Dates are stored as UTC ISO strings; "window" logic uses the device's local time zone.
+- Local storage: `expo-sqlite`, opened once by `SQLiteProvider` in `src/app/_layout.tsx` (it runs `migrate`). Keep all database access behind `src/data/` (import from `@/data`); screens get the db with `useSQLiteContext()` and never write SQL. Dates are stored as UTC ISO strings; "window" logic uses the device's local time zone.
+- The lock rule lives in `src/data/worries.ts` (`READABLE`): `listWorries` returns locked worries with `text: null`, straight from SQL. Add new reads through that path. Window math is in `src/data/window.ts` (pure, no imports).
+- Crisis access: `CrisisButton` is rendered once in the root layout and hidden only on `/crisis`. Tab screens use `<Screen>` (leaves room under the button). **Never present a screen as a native modal or sheet**: it draws above the crisis button.
+- Crisis numbers/URLs are in `src/constants/crisis.ts` (unverified until `lastVerified` is set). The shared disclaimer text is `DISCLAIMER` in `src/constants/copy.ts`.
 - Must run in **Expo Go on iOS** (App Store Expo Go supports SDK 57 only). Before adding a library with native code, check it ships in Expo Go; otherwise raise it before installing.
 - SDK 58 starter code may not match SDK 57. Example: native tabs import from `expo-router/unstable-native-tabs`. Verify against the installed package or the v57 docs.
 - iPhone first. Support dark mode, Dynamic Type, and VoiceOver labels on every interactive element.
