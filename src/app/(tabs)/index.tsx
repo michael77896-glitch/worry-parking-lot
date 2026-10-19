@@ -1,9 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { DeleteLink } from '@/components/delete-link';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,6 +12,7 @@ import { Spacing } from '@/constants/theme';
 import {
   countDueFollowUps,
   currentWindow,
+  deleteWorry,
   getSettings,
   listParked,
   nextWindowOpen,
@@ -18,6 +20,7 @@ import {
   type ParkedWorry,
   type WindowSettings,
 } from '@/data';
+import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime, formatTime, formatWhen } from '@/utils/format';
 
 type Snapshot = {
@@ -28,7 +31,15 @@ type Snapshot = {
 };
 
 /** One parked worry. Deliberately shows when it was parked and when it opens, never what it says. */
-function ParkedRow({ worry, snapshot }: { worry: ParkedWorry; snapshot: Snapshot }) {
+function ParkedRow({
+  worry,
+  snapshot,
+  onDelete,
+}: {
+  worry: ParkedWorry;
+  snapshot: Snapshot;
+  onDelete: () => void;
+}) {
   const { now, settings } = snapshot;
   const parkedAt = formatDateTime(new Date(worry.parkedAt));
   const opensAt = readableAt(new Date(worry.unlocksAt), now, settings);
@@ -38,15 +49,14 @@ function ParkedRow({ worry, snapshot }: { worry: ParkedWorry; snapshot: Snapshot
     : `Locked until ${formatWhen(opensAt)}.`;
 
   return (
-    <ThemedView
-      type="backgroundElement"
-      style={styles.row}
-      accessible
-      accessibilityLabel={`Worry parked ${parkedAt}. ${status}`}>
-      <ThemedText type="smallBold">Parked {parkedAt}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {status}
-      </ThemedText>
+    <ThemedView type="backgroundElement" style={styles.row}>
+      <View accessible accessibilityLabel={`Worry parked ${parkedAt}. ${status}`} style={styles.info}>
+        <ThemedText type="smallBold">Parked {parkedAt}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {status}
+        </ThemedText>
+      </View>
+      <DeleteLink onConfirmed={onDelete} />
     </ThemedView>
   );
 }
@@ -55,21 +65,25 @@ export default function ParkingLotScreen() {
   const db = useSQLiteContext();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
+  const refresh = useCallback(async () => {
+    const now = new Date();
+    const settings = await getSettings(db);
+    const parked = await listParked(db);
+    const dueFollowUps = await countDueFollowUps(db, now);
+    setSnapshot({ now, settings, parked, dueFollowUps });
+  }, [db]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      (async () => {
-        const now = new Date();
-        const settings = await getSettings(db);
-        const parked = await listParked(db);
-        const dueFollowUps = await countDueFollowUps(db, now);
-        if (active) setSnapshot({ now, settings, parked, dueFollowUps });
-      })();
-      return () => {
-        active = false;
-      };
-    }, [db]),
+      void refresh();
+    }, [refresh]),
   );
+
+  async function remove(id: number) {
+    await deleteWorry(db, id);
+    await refresh();
+    void syncFollowUpReminders(db);
+  }
 
   const readyCount = snapshot
     ? snapshot.parked.filter(
@@ -125,7 +139,7 @@ export default function ParkingLotScreen() {
                   : `${snapshot.parked.length} worries parked`}
               </ThemedText>
               {snapshot.parked.map((w) => (
-                <ParkedRow key={w.id} worry={w} snapshot={snapshot} />
+                <ParkedRow key={w.id} worry={w} snapshot={snapshot} onDelete={() => remove(w.id)} />
               ))}
             </>
           )}
@@ -138,7 +152,10 @@ export default function ParkingLotScreen() {
 const styles = StyleSheet.create({
   row: {
     borderRadius: Spacing.three,
-    padding: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
     gap: Spacing.one,
   },
+  info: { gap: Spacing.one },
 });

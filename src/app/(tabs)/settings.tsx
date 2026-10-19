@@ -1,17 +1,22 @@
+import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
+import { Alert } from 'react-native';
 
 import { Button } from '@/components/button';
+import { useOnboarding } from '@/components/onboarding-state';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { DISCLAIMER } from '@/constants/copy';
-import { getSettings, type WindowSettings } from '@/data';
+import { deleteAllData, getSettings, type WindowSettings } from '@/data';
+import { syncFollowUpReminders } from '@/notifications/followups';
+import { cancelWindowReminder } from '@/notifications/reminders';
 import { formatClock } from '@/utils/format';
 
-/** Placeholder. Data deletion arrives in build step 9. */
 export default function SettingsScreen() {
   const db = useSQLiteContext();
+  const { reset } = useOnboarding();
   const [settings, setSettings] = useState<WindowSettings | null>(null);
 
   useFocusEffect(
@@ -25,6 +30,29 @@ export default function SettingsScreen() {
       };
     }, [db]),
   );
+
+  async function wipe() {
+    try {
+      await deleteAllData(db);
+      await cancelWindowReminder();
+      await syncFollowUpReminders(db);
+      // Start fresh: the walkthrough shows again.
+      reset();
+    } catch {
+      Alert.alert("Couldn't delete everything", 'Please try again.');
+    }
+  }
+
+  function confirmWipe() {
+    Alert.alert(
+      'Delete all data?',
+      'This permanently deletes every worry, your record, and your settings from this phone. This can’t be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete everything', style: 'destructive', onPress: () => void wipe() },
+      ],
+    );
+  }
 
   return (
     <Screen>
@@ -41,10 +69,23 @@ export default function SettingsScreen() {
       <Button label="Change worry window" variant="secondary" onPress={() => router.push('/window')} />
 
       <ThemedText type="smallBold" accessibilityRole="header">
+        Your data
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Everything you write stays on this phone. Nothing is sent anywhere. You can delete a single
+        worry from the Parking Lot or Record tab, or delete everything here.
+      </ThemedText>
+      <Button label="Delete all data" variant="secondary" onPress={confirmWipe} />
+
+      <ThemedText type="smallBold" accessibilityRole="header">
         About this app
       </ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         {DISCLAIMER}
+      </ThemedText>
+      <Button label="Crisis resources" variant="secondary" onPress={() => router.push('/crisis')} />
+      <ThemedText type="small" themeColor="textSecondary">
+        Version {Constants.expoConfig?.version ?? 'unknown'}
       </ThemedText>
     </Screen>
   );

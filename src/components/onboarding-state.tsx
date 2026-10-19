@@ -7,6 +7,8 @@ type OnboardingState = {
   /** null while the saved value is still loading. */
   onboarded: boolean | null;
   complete: () => Promise<void>;
+  /** Sends the user back to the walkthrough, e.g. after they delete all their data. */
+  reset: () => void;
 };
 
 const OnboardingContext = createContext<OnboardingState | null>(null);
@@ -30,7 +32,13 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setOnboarded(true);
   }, [db]);
 
-  return <OnboardingContext.Provider value={{ onboarded, complete }}>{children}</OnboardingContext.Provider>;
+  const reset = useCallback(() => setOnboarded(false), []);
+
+  return (
+    <OnboardingContext.Provider value={{ onboarded, complete, reset }}>
+      {children}
+    </OnboardingContext.Provider>
+  );
 }
 
 export function useOnboarding(): OnboardingState {

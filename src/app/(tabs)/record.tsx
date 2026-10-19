@@ -3,11 +3,20 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { DeleteLink } from '@/components/delete-link';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { getStats, listReviewed, type HistoryItem, type Outcome, type Stats } from '@/data';
+import {
+  deleteWorry,
+  getStats,
+  listReviewed,
+  type HistoryItem,
+  type Outcome,
+  type Stats,
+} from '@/data';
+import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime } from '@/utils/format';
 
 const OUTCOME_LABEL: Record<Outcome, string> = {
@@ -27,7 +36,7 @@ function StatRow({ label, value }: { label: string; value: number }) {
   );
 }
 
-function HistoryRow({ item }: { item: HistoryItem }) {
+function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: () => void }) {
   const status = item.outcome
     ? OUTCOME_LABEL[item.outcome]
     : `Look back on ${formatDateTime(new Date(item.followUpDueAt))}`;
@@ -38,6 +47,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
         Parked {formatDateTime(new Date(item.parkedAt))}
       </ThemedText>
       <ThemedText type="smallBold">{status}</ThemedText>
+      <DeleteLink onConfirmed={onDelete} />
     </ThemedView>
   );
 }
@@ -50,18 +60,22 @@ export default function RecordScreen() {
   const db = useSQLiteContext();
   const [data, setData] = useState<{ stats: Stats; history: HistoryItem[] } | null>(null);
 
+  const refresh = useCallback(async () => {
+    const [stats, history] = await Promise.all([getStats(db), listReviewed(db)]);
+    setData({ stats, history });
+  }, [db]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      (async () => {
-        const [stats, history] = await Promise.all([getStats(db), listReviewed(db)]);
-        if (active) setData({ stats, history });
-      })();
-      return () => {
-        active = false;
-      };
-    }, [db]),
+      void refresh();
+    }, [refresh]),
   );
+
+  async function remove(id: number) {
+    await deleteWorry(db, id);
+    await refresh();
+    void syncFollowUpReminders(db);
+  }
 
   return (
     <Screen>
@@ -87,7 +101,7 @@ export default function RecordScreen() {
                 Past worries
               </ThemedText>
               {data.history.map((item) => (
-                <HistoryRow key={item.id} item={item} />
+                <HistoryRow key={item.id} item={item} onDelete={() => remove(item.id)} />
               ))}
             </>
           )}

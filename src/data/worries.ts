@@ -177,9 +177,13 @@ export async function deleteWorry(db: SQLiteDatabase, id: number): Promise<void>
   await db.runAsync('DELETE FROM worries WHERE id = $id', { $id: id });
 }
 
-/** Wipes everything the app has stored: worries and settings. */
+/**
+ * Wipes everything the app has stored: worries and settings. Then shrinks the database file
+ * so no old content is left in free pages. (VACUUM can't run inside a transaction.)
+ */
 export async function deleteAllData(db: SQLiteDatabase): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.execAsync('DELETE FROM worries; DELETE FROM settings;');
   });
+  await db.execAsync('VACUUM');
 }

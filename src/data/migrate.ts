@@ -4,6 +4,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 const LATEST_VERSION = 1;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
+  // Deleted rows are overwritten with zeros, not left behind in the database file.
+  // (Per connection, so it is set every time the database opens.)
+  await db.execAsync('PRAGMA secure_delete = ON');
+
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
   if (current >= LATEST_VERSION) return;
