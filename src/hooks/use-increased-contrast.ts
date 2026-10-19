@@ -1,21 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
-/** True when the iPhone's Increase Contrast ("Darker System Colors") setting is on. */
+/**
+ * True when the iPhone's Increase Contrast ("Darker System Colors") setting is on.
+ *
+ * Every piece of text and every themed view reads this, so there is ONE shared subscription for the
+ * whole app. (It used to be one per component, which meant hundreds of native calls and listeners
+ * when a screen with many cards, like the box-opening reel, appeared.)
+ */
+let current = false;
+let started = false;
+const listeners = new Set<() => void>();
+
+function set(value: boolean) {
+  if (value === current) return;
+  current = value;
+  listeners.forEach((listener) => listener());
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  AccessibilityInfo.isDarkerSystemColorsEnabled()
+    .then(set)
+    .catch(() => {});
+  AccessibilityInfo.addEventListener('darkerSystemColorsChanged', set);
+}
+
+function subscribe(listener: () => void) {
+  start();
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function useIncreasedContrast(): boolean {
-  const [on, setOn] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    AccessibilityInfo.isDarkerSystemColorsEnabled().then((value) => {
-      if (active) setOn(value);
-    });
-    const subscription = AccessibilityInfo.addEventListener('darkerSystemColorsChanged', setOn);
-    return () => {
-      active = false;
-      subscription.remove();
-    };
-  }, []);
-
-  return on;
+  return useSyncExternalStore(subscribe, () => current, () => false);
 }

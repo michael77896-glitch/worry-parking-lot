@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -16,7 +16,6 @@ import { BoxArt } from '@/components/lot/box-art';
 import { Car } from '@/components/lot/car';
 import { ParticleBurst } from '@/components/lot/burst';
 import { PartTile } from '@/components/lot/part-tile';
-import { ThemedText } from '@/components/themed-text';
 import { getPaint } from '@/constants/paints';
 import { getPart } from '@/constants/parts';
 import { Radius, Spacing } from '@/constants/theme';
@@ -48,26 +47,40 @@ function PaintDot({ paintId, size }: { paintId: string; size: number }) {
   );
 }
 
-/** One card on the reel: the item's picture and name, with a bottom border in its rarity color. */
-const ReelCard = memo(function ReelCard({ reward }: { reward: Reward }) {
-  const theme = useTheme();
+/**
+ * One card on the reel: the item's picture and name, with a bottom border in its rarity color.
+ *
+ * Kept as light as possible, because up to 60 of them are on screen's strip at once: the colors
+ * come in as props (no hooks per card), the name is a plain Text, and every card except the winner
+ * is drawn once and then moved as a single flat image (`shouldRasterizeIOS`), so sliding the strip
+ * doesn't re-draw anything. The winner is left live so it can scale up crisply.
+ */
+const ReelCard = memo(function ReelCard({
+  reward,
+  background,
+  textColor,
+  rasterize,
+}: {
+  reward: Reward;
+  background: string;
+  textColor: string;
+  rasterize: boolean;
+}) {
   const look = describeReward(reward);
 
   return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.backgroundElement, borderBottomColor: look.color },
-      ]}>
+      shouldRasterizeIOS={rasterize}
+      style={[styles.card, { backgroundColor: background, borderBottomColor: look.color }]}>
       <View style={styles.picture}>
         {reward.kind === 'car' && <Car carId={reward.carId} width={52} height={74} />}
         {reward.kind === 'part' && <PartTile slot={getPart(reward.partId)!.slot} rarity={reward.rarity} size={60} />}
         {reward.kind === 'paint' && <PaintDot paintId={reward.paintId} size={58} />}
         {reward.kind === 'golden' && <BoxArt type="golden" width={68} />}
       </View>
-      <ThemedText type="caption" capScale numberOfLines={1} style={styles.name}>
+      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.name, { color: textColor }]}>
         {look.name}
-      </ThemedText>
+      </Text>
     </View>
   );
 });
@@ -146,7 +159,9 @@ export function CaseReel({
     x.set(
       withTiming(
         finalX,
-        { duration: durationMs, easing: Easing.bezier(0.1, 0.62, 0.1, 1) },
+        // Starts at about 3x the average speed and settles slowly. (A sharper start made cards
+        // jump more than half their width per frame, which looks choppy however smooth it runs.)
+        { duration: durationMs, easing: Easing.bezier(0.2, 0.6, 0.2, 1) },
         (finished) => {
           if (finished) runOnJS(emitLanded)();
         },
@@ -181,10 +196,21 @@ export function CaseReel({
             <Animated.View
               key={i}
               style={[styles.winner, { shadowColor: winner.color, zIndex: 2 }, popStyle]}>
-              <ReelCard reward={reward} />
+              <ReelCard
+                reward={reward}
+                background={theme.backgroundElement}
+                textColor={theme.text}
+                rasterize={false}
+              />
             </Animated.View>
           ) : (
-            <ReelCard key={i} reward={reward} />
+            <ReelCard
+              key={i}
+              reward={reward}
+              background={theme.backgroundElement}
+              textColor={theme.text}
+              rasterize
+            />
           ),
         )}
       </Animated.View>
@@ -213,7 +239,7 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   picture: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  name: { textAlign: 'center', paddingBottom: Spacing.one },
+  name: { textAlign: 'center', paddingBottom: Spacing.one, fontSize: 13, lineHeight: 18, fontWeight: 500 },
   winner: { shadowOffset: { width: 0, height: 0 }, shadowRadius: 18, shadowOpacity: 0 },
   markerLine: { position: 'absolute', top: 10, bottom: 10, width: 3, borderRadius: 2, opacity: 0.9 },
   arrow: {

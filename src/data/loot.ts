@@ -75,7 +75,7 @@ export function rollBox(type: BoxType, sinceEpic: number, random: () => number =
 
 export const REEL_LENGTH = 60;
 /** Where the real reward sits in the reel. Far enough in for the spin to build speed. */
-export const REEL_WINNER_INDEX = 48;
+export const REEL_WINNER_INDEX = 40;
 
 /**
  * The strip of cards that spins past the marker when a box opens. The real reward was already

@@ -53,9 +53,13 @@ const forcedRandom: ((rarity: Rarity) => () => number) | undefined = __DEV__
 
 const SHAKE_MS = 1000;
 const BURST_MS = 380;
-const SPIN_MS = 4000;
-/** Ticks closer together than this are skipped, so the haptics stay crisp when the reel is fast. */
-const MIN_TICK_GAP_MS = 55;
+const SPIN_MS = 4200;
+/**
+ * Ticks closer together than this are skipped. Haptics and sound run on the same thread that draws
+ * the screen, so firing one for every one of the ~30 cards a second at the start of the spin
+ * would itself make the reel stutter.
+ */
+const MIN_TICK_GAP_MS = 75;
 const BOX_WIDTH = 190;
 
 type Stage = 'loading' | 'missing' | 'closed' | 'shaking' | 'bursting' | 'spinning' | 'landed' | 'revealed';
@@ -130,6 +134,7 @@ export default function OpenBoxScreen() {
   const boxScale = useSharedValue(1);
   const pop = useSharedValue(0);
   const drive = useSharedValue(0);
+  const reelOpacity = useSharedValue(0);
 
   function play(name: Sfx) {
     if (soundOn.current) sfx.current?.play(name);
@@ -225,7 +230,10 @@ export default function OpenBoxScreen() {
       });
 
       // 3. The reel spins.
-      later(SHAKE_MS + BURST_MS, () => setStage('spinning'));
+      later(SHAKE_MS + BURST_MS, () => {
+        setStage('spinning');
+        reelOpacity.value = withTiming(1, { duration: 220 });
+      });
     } catch {
       Alert.alert("Couldn't open that box", 'Please try again.');
     } finally {
@@ -295,8 +303,10 @@ export default function OpenBoxScreen() {
     opacity: 1 - drive.value,
   }));
 
+  const reelStyle = useAnimatedStyle(() => ({ opacity: reelOpacity.value }));
+
   const showingBox = stage === 'closed' || stage === 'shaking' || stage === 'bursting';
-  const showingReel = (stage === 'spinning' || stage === 'landed') && reel;
+  const reelVisible = stage === 'spinning' || stage === 'landed';
   const animating = stage === 'shaking' || stage === 'bursting' || stage === 'spinning' || stage === 'landed';
 
   return (
@@ -322,22 +332,51 @@ export default function OpenBoxScreen() {
 
         {stage === 'missing' && <ThemedText>That box isn&apos;t here anymore.</ThemedText>}
 
-        {showingBox && box && (
+        {(showingBox || reelVisible) && box && (
           <>
-            <ThemedText themeColor="textSecondary">
-              {stage === 'closed' ? 'You earned this one. There is no cost to open it.' : 'Opening…'}
-            </ThemedText>
+            {showingBox && (
+              <ThemedText themeColor="textSecondary">
+                {stage === 'closed' ? 'You earned this one. There is no cost to open it.' : 'Opening…'}
+              </ThemedText>
+            )}
             <View style={styles.stage}>
-              <Pressable
-                disabled={stage !== 'closed' || busy}
-                onPress={open}
-                accessibilityRole="button"
-                accessibilityLabel={`${BOX_LABEL[box.type]}. Tap to open.`}>
-                <Animated.View style={shakeStyle}>
-                  <BoxArt type={box.type} width={BOX_WIDTH} lidStyle={lidStyle} />
+              {showingBox && (
+                <>
+                  <Pressable
+                    disabled={stage !== 'closed' || busy}
+                    onPress={open}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${BOX_LABEL[box.type]}. Tap to open.`}>
+                    <Animated.View style={shakeStyle}>
+                      <BoxArt type={box.type} width={BOX_WIDTH} lidStyle={lidStyle} />
+                    </Animated.View>
+                  </Pressable>
+                  <ParticleBurst color={theme.accent} gold={false} trigger={boxBurst} />
+                </>
+              )}
+
+              {/* The reel is built as soon as the reward is known and sits hidden during the
+                  shake, so its pictures are loaded before the spin starts. Mounting 60 cards at
+                  the moment the spin began is what made the start stutter. */}
+              {reel && (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.reelLayer, { width: windowWidth }, reelStyle]}>
+                  <CaseReel
+                    cards={reel.cards}
+                    winnerIndex={reel.winnerIndex}
+                    width={windowWidth}
+                    landing={reel.landing}
+                    durationMs={SPIN_MS}
+                    running={reelVisible}
+                    finishNow={0}
+                    popped={popped}
+                    gold={gold}
+                    onTick={onTick}
+                    onLanded={onLanded}
+                  />
                 </Animated.View>
-              </Pressable>
-              <ParticleBurst color={theme.accent} gold={false} trigger={boxBurst} />
+              )}
             </View>
             {stage === 'closed' && (
               <>
@@ -359,23 +398,6 @@ export default function OpenBoxScreen() {
           </>
         )}
 
-        {showingReel && (
-          <View style={{ marginHorizontal: -Spacing.four, width: windowWidth }}>
-            <CaseReel
-              cards={reel.cards}
-              winnerIndex={reel.winnerIndex}
-              width={windowWidth}
-              landing={reel.landing}
-              durationMs={SPIN_MS}
-              running
-              finishNow={0}
-              popped={popped}
-              gold={gold}
-              onTick={onTick}
-              onLanded={onLanded}
-            />
-          </View>
-        )}
         {stage === 'landed' && look && (
           <Animated.View entering={FadeIn.duration(250).reduceMotion(ReduceMotion.System)}>
             <ThemedText type="title" style={[styles.centerText, { color: look.color }]} accessibilityLiveRegion="polite">
@@ -546,6 +568,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mute: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
   stage: { alignItems: 'center', justifyContent: 'center', height: 270 },
+  // Full screen width (the screen's side padding is cancelled), centered in the stage.
+  reelLayer: { position: 'absolute', left: -Spacing.four, top: 43 },
   link: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   underline: { textDecorationLine: 'underline' },
   reveal: { gap: Spacing.three },
