@@ -40,6 +40,7 @@ import {
   type Box,
   type Reward,
 } from '@/data';
+import type { FrameReport } from '@/dev/frame-meter';
 import { useOpeningPrefs } from '@/hooks/use-opening-prefs';
 import { useTheme } from '@/hooks/use-theme';
 import { burstHaptic, createSfx, landHaptic, revealSfx, shakeHaptic, tickHaptic, type Sfx } from '@/utils/feedback';
@@ -50,6 +51,12 @@ const forcedRandom: ((rarity: Rarity) => () => number) | undefined = __DEV__
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@/dev/forced-roll').forcedRandom
   : undefined;
+
+// Development only: measures how smooth the spin was and shows the numbers. Not bundled in release.
+const useMeter: (active: boolean) => { reset(): void; read(): FrameReport } | null = __DEV__
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/dev/frame-meter').useFrameMeter
+  : () => null;
 
 const SHAKE_MS = 1000;
 const BURST_MS = 380;
@@ -134,7 +141,10 @@ export default function OpenBoxScreen() {
   const boxScale = useSharedValue(1);
   const pop = useSharedValue(0);
   const drive = useSharedValue(0);
-  const reelOpacity = useSharedValue(0);
+  // A plain screen-colored cover over the reel until the spin starts. It fades away at the start.
+  const coverOpacity = useSharedValue(1);
+  const meter = useMeter(stage === 'spinning' || stage === 'landed');
+  const [report, setReport] = useState<FrameReport | null>(null);
 
   function play(name: Sfx) {
     if (soundOn.current) sfx.current?.play(name);
@@ -231,8 +241,9 @@ export default function OpenBoxScreen() {
 
       // 3. The reel spins.
       later(SHAKE_MS + BURST_MS, () => {
+        meter?.reset();
         setStage('spinning');
-        reelOpacity.value = withTiming(1, { duration: 220 });
+        coverOpacity.value = withTiming(0, { duration: 220 });
       });
     } catch {
       Alert.alert("Couldn't open that box", 'Please try again.');
@@ -252,6 +263,7 @@ export default function OpenBoxScreen() {
   function onLanded() {
     if (!look) return;
     // 4. The winner pops, the screen flashes its color once, particles burst out.
+    if (meter) setReport(meter.read());
     setStage('landed');
     setPopped(true);
     setFlash((n) => n + 1);
@@ -303,7 +315,7 @@ export default function OpenBoxScreen() {
     opacity: 1 - drive.value,
   }));
 
-  const reelStyle = useAnimatedStyle(() => ({ opacity: reelOpacity.value }));
+  const coverStyle = useAnimatedStyle(() => ({ opacity: coverOpacity.get() }));
 
   const showingBox = stage === 'closed' || stage === 'shaking' || stage === 'bursting';
   const reelVisible = stage === 'spinning' || stage === 'landed';
@@ -340,6 +352,35 @@ export default function OpenBoxScreen() {
               </ThemedText>
             )}
             <View style={styles.stage}>
+              {/* The reel is built as soon as the reward is known and kept covered during the
+                  shake, so its pictures are loaded and every card is drawn once (the warm-up
+                  sweep) before the spin starts. Building 60 cards, or drawing each for the first
+                  time, mid-spin is what made it stutter. It is covered rather than made see-through
+                  because a see-through group of 60 cards is itself slow to draw. */}
+              {reel && (
+                <>
+                  <View pointerEvents="none" style={[styles.reelLayer, { width: windowWidth }]}>
+                    <CaseReel
+                      cards={reel.cards}
+                      winnerIndex={reel.winnerIndex}
+                      width={windowWidth}
+                      landing={reel.landing}
+                      durationMs={SPIN_MS}
+                      warmUp={stage === 'shaking' || stage === 'bursting'}
+                      running={reelVisible}
+                      popped={popped}
+                      gold={gold}
+                      onTick={onTick}
+                      onLanded={onLanded}
+                    />
+                  </View>
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[styles.reelLayer, styles.reelCover, { width: windowWidth, backgroundColor: theme.background }, coverStyle]}
+                  />
+                </>
+              )}
+
               {showingBox && (
                 <>
                   <Pressable
@@ -353,29 +394,6 @@ export default function OpenBoxScreen() {
                   </Pressable>
                   <ParticleBurst color={theme.accent} gold={false} trigger={boxBurst} />
                 </>
-              )}
-
-              {/* The reel is built as soon as the reward is known and sits hidden during the
-                  shake, so its pictures are loaded before the spin starts. Mounting 60 cards at
-                  the moment the spin began is what made the start stutter. */}
-              {reel && (
-                <Animated.View
-                  pointerEvents="none"
-                  style={[styles.reelLayer, { width: windowWidth }, reelStyle]}>
-                  <CaseReel
-                    cards={reel.cards}
-                    winnerIndex={reel.winnerIndex}
-                    width={windowWidth}
-                    landing={reel.landing}
-                    durationMs={SPIN_MS}
-                    running={reelVisible}
-                    finishNow={0}
-                    popped={popped}
-                    gold={gold}
-                    onTick={onTick}
-                    onLanded={onLanded}
-                  />
-                </Animated.View>
               )}
             </View>
             {stage === 'closed' && (
@@ -528,6 +546,13 @@ export default function OpenBoxScreen() {
               </Animated.View>
             )}
 
+            {report && (
+              <ThemedText type="caption" themeColor="textSecondary" style={styles.centerText}>
+                Reel timing (development only): {report.averageFps} fps on average, worst frame {report.worstMs} ms,{' '}
+                {report.slowFrames} of {report.frames} frames over 25 ms.
+              </ThemedText>
+            )}
+
             {!waitingDuplicate && (
               <>
                 {reward.kind === 'golden' && (
@@ -570,6 +595,8 @@ const styles = StyleSheet.create({
   stage: { alignItems: 'center', justifyContent: 'center', height: 270 },
   // Full screen width (the screen's side padding is cancelled), centered in the stage.
   reelLayer: { position: 'absolute', left: -Spacing.four, top: 43 },
+  // The same size as the reel's viewport (cards are 132 high, plus 26 above and below).
+  reelCover: { height: 184 },
   link: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   underline: { textDecorationLine: 'underline' },
   reveal: { gap: Spacing.three },
