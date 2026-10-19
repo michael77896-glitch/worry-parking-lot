@@ -119,6 +119,35 @@ export function createSfx() {
   });
 
   return {
+    /**
+     * Plays every sound silently for a moment. The first time a sound plays, iOS sets up its
+     * audio engine, which can freeze the screen for a fifth of a second. Doing that while the box
+     * is still shaking means it can't happen in the middle of the spin.
+     */
+    warmUp() {
+      try {
+        const all = Object.values(players)
+          .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+          .filter((p): p is AudioPlayer => !!p);
+        for (const p of all) {
+          p.volume = 0;
+          p.play();
+        }
+        setTimeout(() => {
+          for (const p of all) {
+            try {
+              p.pause();
+              void p.seekTo(0);
+              p.volume = 1;
+            } catch {
+              // Ignore: this player is already gone.
+            }
+          }
+        }, 90);
+      } catch {
+        // Ignore: a missed warm-up just means the first sound may be a little late.
+      }
+    },
     play(name: Sfx) {
       try {
         const entry = players[name];

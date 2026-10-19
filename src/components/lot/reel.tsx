@@ -168,7 +168,12 @@ export function CaseReel({
   // every card has been drawn (and its picture loaded) before the real spin begins.
   useEffect(() => {
     if (!warmUp) return;
-    x.set(withTiming(finalX, { duration: 700, easing: Easing.linear }));
+    x.set(
+      withTiming(finalX, { duration: 700, easing: Easing.linear }, (finished) => {
+        // Back to the start, so the strip never sits on the winner where it could be seen.
+        if (finished) x.set(0);
+      }),
+    );
   }, [warmUp, finalX, x]);
 
   useEffect(() => {

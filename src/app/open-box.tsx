@@ -66,7 +66,10 @@ const SPIN_MS = 4200;
  * the screen, so firing one for every one of the ~30 cards a second at the start of the spin
  * would itself make the reel stutter.
  */
-const MIN_TICK_GAP_MS = 75;
+const MIN_TICK_GAP_MS = 90;
+const MIN_SOUND_GAP_MS = 150;
+/** How long after the reel appears before it starts to spin. */
+const SPIN_DELAY_MS = 170;
 const BOX_WIDTH = 190;
 
 type Stage = 'loading' | 'missing' | 'closed' | 'shaking' | 'bursting' | 'spinning' | 'landed' | 'revealed';
@@ -130,6 +133,7 @@ export default function OpenBoxScreen() {
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastTick = useRef(0);
+  const lastSound = useRef(0);
   const landedSound = useRef(false);
   const sfx = useRef<ReturnType<typeof createSfx> | null>(null);
   const soundOn = useRef(true);
@@ -143,7 +147,8 @@ export default function OpenBoxScreen() {
   const drive = useSharedValue(0);
   // A plain screen-colored cover over the reel until the spin starts. It fades away at the start.
   const coverOpacity = useSharedValue(1);
-  const meter = useMeter(stage === 'spinning' || stage === 'landed');
+  const [go, setGo] = useState(false);
+  const meter = useMeter(go && (stage === 'spinning' || stage === 'landed'));
   const [report, setReport] = useState<FrameReport | null>(null);
 
   function play(name: Sfx) {
@@ -222,7 +227,9 @@ export default function OpenBoxScreen() {
         return;
       }
 
-      // 1. The box shakes harder and harder.
+      // 1. The box shakes harder and harder. (Meanwhile the sounds are warmed up silently, so the
+      // first one doesn't start cold in the middle of the spin.)
+      if (soundOn.current) sfx.current?.warmUp();
       setStage('shaking');
       boxScale.value = withTiming(1.1, { duration: SHAKE_MS, easing: Easing.in(Easing.quad) });
       const swings = [3, -3, 5, -5, 7, -7, 9, -9, 11, -11, 13, -13, 15, -15, 0];
@@ -240,10 +247,15 @@ export default function OpenBoxScreen() {
       });
 
       // 3. The reel spins.
+      // The screen changes first (the box goes, the cover fades) and the spin starts a moment
+      // later. Changing the screen costs a few frames, and they shouldn't be the spin's first ones.
       later(SHAKE_MS + BURST_MS, () => {
-        meter?.reset();
         setStage('spinning');
         coverOpacity.value = withTiming(0, { duration: 220 });
+      });
+      later(SHAKE_MS + BURST_MS + SPIN_DELAY_MS, () => {
+        meter?.reset();
+        setGo(true);
       });
     } catch {
       Alert.alert("Couldn't open that box", 'Please try again.');
@@ -254,10 +266,16 @@ export default function OpenBoxScreen() {
 
   function onTick() {
     const now = Date.now();
-    if (now - lastTick.current < MIN_TICK_GAP_MS) return;
-    lastTick.current = now;
-    tickHaptic();
-    play('tick');
+    if (now - lastTick.current >= MIN_TICK_GAP_MS) {
+      lastTick.current = now;
+      tickHaptic();
+    }
+    // The sound is spaced out more than the haptic: at full speed the ticks blur into a rattle
+    // anyway, and each sound start is work on the thread that draws the screen.
+    if (now - lastSound.current >= MIN_SOUND_GAP_MS) {
+      lastSound.current = now;
+      play('tick');
+    }
   }
 
   function onLanded() {
@@ -367,7 +385,7 @@ export default function OpenBoxScreen() {
                       landing={reel.landing}
                       durationMs={SPIN_MS}
                       warmUp={stage === 'shaking' || stage === 'bursting'}
-                      running={reelVisible}
+                      running={reelVisible && go}
                       popped={popped}
                       gold={gold}
                       onTick={onTick}
@@ -550,6 +568,9 @@ export default function OpenBoxScreen() {
               <ThemedText type="caption" themeColor="textSecondary" style={styles.centerText}>
                 Reel timing (development only): {report.averageFps} fps on average, worst frame {report.worstMs} ms,{' '}
                 {report.slowFrames} of {report.frames} frames over 25 ms.
+                {report.slowAt.length > 0
+                  ? ` Slow frames, seconds into the spin: ${report.slowAt.map((s) => `${s.at.toFixed(2)}s (${s.ms} ms)`).join(', ')}.`
+                  : ''}
               </ThemedText>
             )}
 
