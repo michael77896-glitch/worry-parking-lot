@@ -22,7 +22,7 @@ import { BoxArt } from '@/components/lot/box-art';
 import { ParticleBurst } from '@/components/lot/burst';
 import { Car } from '@/components/lot/car';
 import { PartTile } from '@/components/lot/part-tile';
-import { CaseReel } from '@/components/lot/reel';
+import { CaseReel, REEL_SPIN_MS } from '@/components/lot/reel';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { getCar } from '@/constants/car-catalog';
@@ -60,7 +60,6 @@ const useMeter: (active: boolean) => { reset(): void; read(): FrameReport } | nu
 
 const SHAKE_MS = 1000;
 const BURST_MS = 380;
-const SPIN_MS = 4200;
 /**
  * Tick sounds closer together than this are skipped. Sound starts run on the same thread that draws
  * the screen. (There are no haptics on the ticks: they were firing about 11 times a second during
@@ -378,7 +377,7 @@ export default function OpenBoxScreen() {
                       winnerIndex={reel.winnerIndex}
                       width={windowWidth}
                       landing={reel.landing}
-                      durationMs={SPIN_MS}
+                      durationMs={REEL_SPIN_MS}
                       warmUp={stage === 'shaking' || stage === 'bursting'}
                       running={reelVisible && go}
                       popped={popped}

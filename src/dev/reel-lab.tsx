@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { Button } from '@/components/button';
-import { CARD_H, CaseReel } from '@/components/lot/reel';
+import { CARD_H, CaseReel, REEL_SPIN_MS } from '@/components/lot/reel';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { buildReel, type Reward } from '@/data';
@@ -22,7 +22,6 @@ const CONFIGS: Config[] = [
 ];
 
 const WARM_MS = 900;
-const SPIN_MS = 4200;
 const PAUSE_MS = 700;
 const WINNER: Reward = { kind: 'part', partId: 'rims-steel', rarity: 'common' };
 const REEL_HEIGHT = CARD_H + 52;
@@ -123,7 +122,7 @@ export function ReelLab() {
             winnerIndex={reel.winnerIndex}
             width={width}
             landing={0.1}
-            durationMs={SPIN_MS}
+            durationMs={REEL_SPIN_MS}
             warmUp={!spinning}
             running={spinning}
             popped={false}

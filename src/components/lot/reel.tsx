@@ -22,6 +22,13 @@ import type { Reward } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
 import { describeReward } from '@/utils/rewards-ui';
 
+/**
+ * How long the spin lasts. With the winner 28 cards in (see REEL_WINNER_INDEX), that is about
+ * 3,000 px, so it starts near 1,100 px per second (a bit over a tenth of a card per frame) and
+ * slows evenly to a stop. Raise this for a longer, gentler spin.
+ */
+export const REEL_SPIN_MS = 5500;
+
 export const CARD_W = 104;
 export const CARD_H = 132;
 const GAP = 8;
@@ -191,9 +198,10 @@ export function CaseReel({
     x.set(
       withTiming(
         finalX,
-        // Starts at about twice the average speed and settles slowly. A sharper start made cards
-        // jump over half their width per frame, which looks choppy however smoothly it renders.
-        { duration: durationMs, easing: Easing.bezier(0.3, 0.6, 0.2, 1) },
+        // A steady slowdown: the speed falls in a straight line from about twice the average to
+        // zero, so the reel eases to a stop over the whole spin instead of braking hard and then
+        // crawling. (The earlier curve covered 90% of the distance in the first half.)
+        { duration: durationMs, easing: Easing.out(Easing.quad) },
         (finished) => {
           if (finished) runOnJS(emitLanded)();
         },
