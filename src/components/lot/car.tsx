@@ -3,67 +3,50 @@ import { useId } from 'react';
 import { View } from 'react-native';
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 
+import { getCar, getCarImage } from '@/constants/car-catalog';
 import { Night } from '@/constants/theme';
-import type { CarKind } from '@/data';
 
-// Top-down pictures, nose up, trimmed to the car and sized for 3x screens.
-const IMAGES: Record<CarKind, number> = {
-  hatchback: require('../../../assets/cars/hatchback.png'),
-  sedan: require('../../../assets/cars/sedan.png'),
-  suv: require('../../../assets/cars/suv.png'),
-  pickup: require('../../../assets/cars/pickup.png'),
-  beetle: require('../../../assets/cars/beetle.png'),
-  van: require('../../../assets/cars/van.png'),
-};
-
-/** Width divided by height of each trimmed picture. */
-const ASPECT: Record<CarKind, number> = {
-  hatchback: 260 / 480,
-  sedan: 227 / 480,
-  suv: 255 / 480,
-  pickup: 231 / 480,
-  beetle: 228 / 480,
-  van: 238 / 480,
-};
-
-/** How long each car is next to the longest one, so a beetle really is shorter than a van. */
-const LENGTH: Record<CarKind, number> = {
-  hatchback: 0.9,
-  sedan: 0.97,
-  suv: 0.95,
-  pickup: 1,
-  beetle: 0.88,
-  van: 1,
-};
+/** The flat dark color a locked car is drawn in. */
+const SILHOUETTE = '#0E1219';
 
 type Props = {
-  kind: CarKind;
+  /** An id from the car catalog. */
+  carId: string;
   /** With only a width, the car is drawn at its natural proportions. */
   width: number;
   /**
    * With a height too, the car is fitted into that box: as large as fits, never stretched,
-   * nose at the top (like a car parked nose-in), and shorter cars a little shorter.
+   * nose at the top (like a car parked nose-in), and shorter cars a little smaller.
    */
   height?: number;
   /** A soft lamp glow behind the car, for when the gate is open and it can be visited. */
   lit?: boolean;
+  /** Draw the car as a flat dark shape, for locked cars. */
+  silhouette?: boolean;
+  /** A paint from the catalog, if the car has it. */
+  paintId?: string;
 };
 
 /** Decorative. Screens give the car an accessibility label through the thing that holds it. */
-export function Car({ kind, width, height, lit = false }: Props) {
+export function Car({ carId, width, height, lit = false, silhouette = false, paintId }: Props) {
   const gradientId = `glow${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const boxHeight = height ?? width / ASPECT[kind];
-  const carHeight = height === undefined ? boxHeight : boxHeight * LENGTH[kind];
+  const car = getCar(carId);
+
+  // In a box, the car fits inside the width too, so a wide car never pokes out of its spot.
+  const fitted = height === undefined ? null : Math.min(height * car.length, width / car.aspect);
+  const boxHeight = height ?? width / car.aspect;
+  const carHeight = fitted ?? boxHeight;
+  const carWidth = height === undefined ? width : carHeight * car.aspect;
 
   return (
     <View
-      style={{ width, height: boxHeight }}
+      style={{ width, height: boxHeight, alignItems: 'center' }}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       {lit && (
         <Svg
-          style={{ position: 'absolute', left: -width * 0.45, top: -carHeight * 0.12 }}
-          width={width * 1.9}
+          style={{ position: 'absolute', left: (width - carWidth * 1.9) / 2, top: -carHeight * 0.12 }}
+          width={carWidth * 1.9}
           height={carHeight * 1.24}
           viewBox="0 0 100 100"
           preserveAspectRatio="none">
@@ -77,10 +60,11 @@ export function Car({ kind, width, height, lit = false }: Props) {
         </Svg>
       )}
       <Image
-        source={IMAGES[kind]}
-        style={{ width, height: carHeight }}
+        source={getCarImage(car, paintId)}
+        style={{ width: carWidth, height: carHeight }}
         contentFit="contain"
         contentPosition="top"
+        tintColor={silhouette ? SILHOUETTE : undefined}
         transition={0}
       />
     </View>

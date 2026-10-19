@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { isCarKind, randomCarKind, type CarKind } from './cars';
+import { DEFAULT_CAR_ID, isCarId, type CarId } from './cars';
 import type {
   FollowUp,
   HistoryItem,
@@ -41,7 +41,7 @@ function unlockCutoff(now: Date): string {
 
 type Row = {
   id: number;
-  car: CarKind;
+  car: CarId;
   parkedAt: string;
   unlocksAt: string;
   followUpDueAt: string;
@@ -51,20 +51,20 @@ type Row = {
   text: string | null;
 };
 
-/** Parks a worry as the given car, or a random one if none is given. Returns its id. */
+/** Parks a worry as the given car (an id from the catalog). Returns the worry's id. */
 export async function parkWorry(
   db: SQLiteDatabase,
   text: string,
   settings: WindowSettings,
   now: Date = new Date(),
-  car: CarKind = randomCarKind(),
+  car: CarId = DEFAULT_CAR_ID,
 ): Promise<number> {
   const trimmed = text.trim();
   if (trimmed.length === 0) throw new RangeError('A worry cannot be empty');
   if (trimmed.length > MAX_WORRY_LENGTH) {
     throw new RangeError(`A worry can be at most ${MAX_WORRY_LENGTH} characters`);
   }
-  if (!isCarKind(car)) throw new RangeError('Unknown car');
+  if (!isCarId(car)) throw new RangeError('Not a valid car id');
   const followUpDueAt = new Date(now.getTime() + FOLLOW_UP_DAYS * 24 * 60 * 60 * 1000);
   const result = await db.runAsync(
     `INSERT INTO worries (text, car, parkedAt, unlocksAt, followUpDueAt)

@@ -3,28 +3,27 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Car } from '@/components/lot/car';
 import { ThemedText } from '@/components/themed-text';
+import { STYLE_GROUPS, unlockedCars } from '@/constants/car-catalog';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
-import { CAR_KINDS, CAR_LABELS, type CarKind } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
 
-export type CarChoice = CarKind | 'random';
-
 type Props = {
-  value: CarChoice;
-  onChange: (choice: CarChoice) => void;
+  /** The selected car's id. */
+  value: string;
+  onChange: (carId: string) => void;
+  /** Called when "Surprise me" is tapped. The screen decides which car comes next. */
+  onShuffle: () => void;
 };
 
-const TILE_WIDTH = 92;
-const PICTURE_HEIGHT = 84;
+const TILE_WIDTH = 96;
+const PICTURE_HEIGHT = 92;
 
-/** A row to choose which car a worry is parked as, or "Surprise me" to leave it to chance. */
-export function CarPicker({ value, onChange }: Props) {
+/**
+ * A row of the cars you can park as (locked cars are left out), with "Surprise me" first.
+ * It scrolls sideways, so it grows as more cars are added to the catalog.
+ */
+export function CarPicker({ value, onChange, onShuffle }: Props) {
   const theme = useTheme();
-
-  const options: { choice: CarChoice; label: string; description: string }[] = [
-    { choice: 'random', label: 'Surprise me', description: 'Picks a car at random' },
-    ...CAR_KINDS.map((kind) => ({ choice: kind, label: CAR_LABELS[kind], description: CAR_LABELS[kind] })),
-  ];
 
   return (
     <ScrollView
@@ -34,15 +33,32 @@ export function CarPicker({ value, onChange }: Props) {
       contentContainerStyle={styles.row}
       accessibilityRole="radiogroup"
       accessibilityLabel="Choose a car">
-      {options.map(({ choice, label, description }) => {
-        const selected = value === choice;
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Surprise me. Picks a different car at random."
+        onPress={onShuffle}
+        style={({ pressed }) => [
+          styles.tile,
+          { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+          pressed && styles.pressed,
+        ]}>
+        <View style={styles.picture}>
+          <ThemedText style={styles.question}>?</ThemedText>
+        </View>
+        <ThemedText type="caption" capScale numberOfLines={1} style={styles.label}>
+          Surprise me
+        </ThemedText>
+      </Pressable>
+
+      {unlockedCars().map((car) => {
+        const selected = car.id === value;
         return (
           <Pressable
-            key={choice}
+            key={car.id}
             accessibilityRole="radio"
-            accessibilityLabel={`${label}. ${choice === 'random' ? description : 'A car for this worry'}`}
+            accessibilityLabel={`${car.name}, ${STYLE_GROUPS[car.style].spoken}`}
             accessibilityState={{ selected, checked: selected }}
-            onPress={() => onChange(choice)}
+            onPress={() => onChange(car.id)}
             style={({ pressed }) => [
               styles.tile,
               {
@@ -52,14 +68,10 @@ export function CarPicker({ value, onChange }: Props) {
               pressed && styles.pressed,
             ]}>
             <View style={styles.picture}>
-              {choice === 'random' ? (
-                <ThemedText style={styles.question}>?</ThemedText>
-              ) : (
-                <Car kind={choice} width={TILE_WIDTH * 0.62} height={PICTURE_HEIGHT} />
-              )}
+              <Car carId={car.id} width={TILE_WIDTH * 0.62} height={PICTURE_HEIGHT} />
             </View>
             <ThemedText type="caption" capScale numberOfLines={1} style={styles.label}>
-              {label}
+              {car.name}
             </ThemedText>
             {selected && (
               <View style={styles.check} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -80,8 +92,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: Radius.card - 4,
     borderWidth: 1.5,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
+    paddingVertical: Spacing.two,
     alignItems: 'center',
     gap: Spacing.one,
   },

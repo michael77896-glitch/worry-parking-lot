@@ -92,7 +92,7 @@ export default function FollowUpScreen() {
           </ThemedText>
           <ThemedView type="backgroundElement" style={styles.card}>
             <View style={styles.carRow}>
-              <Car kind={phase.queue[phase.index].car} width={34} />
+              <Car carId={phase.queue[phase.index].car} width={34} />
               <ThemedText type="small" themeColor="textSecondary" style={styles.parkedOn}>
                 You parked this on {formatDateTime(new Date(phase.queue[phase.index].parkedAt))}.
               </ThemedText>

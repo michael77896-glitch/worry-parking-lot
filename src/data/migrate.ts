@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 /** Bump this and add a step below when the schema changes. */
-const LATEST_VERSION = 3;
+const LATEST_VERSION = 4;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
   // Deleted rows are overwritten with zeros, not left behind in the database file.
@@ -47,6 +47,41 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
         UPDATE worries SET car = CASE id % 6
           WHEN 0 THEN 'hatchback' WHEN 1 THEN 'sedan' WHEN 2 THEN 'suv'
           WHEN 3 THEN 'pickup' WHEN 4 THEN 'beetle' ELSE 'van' END;
+      `);
+    }
+    if (current < 4) {
+      // The first six cars were replaced by the starter catalog, and the car column no longer
+      // has a fixed list of allowed values (new cars come from the catalog). SQLite can't drop a
+      // CHECK in place, so rebuild the table, mapping each old car to its closest new one.
+      await db.execAsync(`
+        CREATE TABLE worries_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          text TEXT NOT NULL,
+          parkedAt TEXT NOT NULL,
+          unlocksAt TEXT NOT NULL,
+          followUpDueAt TEXT NOT NULL,
+          reviewedAt TEXT,
+          outcome TEXT CHECK (outcome IN ('happened', 'partly', 'did_not_happen')),
+          outcomeAt TEXT,
+          reviewChoice TEXT CHECK (reviewChoice IN ('let_go', 'small_step')),
+          smallStep TEXT,
+          car TEXT NOT NULL DEFAULT 'coupe'
+        );
+        INSERT INTO worries_new
+          (id, text, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt, reviewChoice, smallStep, car)
+        SELECT id, text, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt, reviewChoice, smallStep,
+          CASE car
+            WHEN 'hatchback' THEN 'city-car'
+            WHEN 'sedan' THEN 'coupe'
+            WHEN 'suv' THEN '4x4'
+            WHEN 'pickup' THEN 'kei-truck'
+            WHEN 'beetle' THEN 'rear-engine'
+            WHEN 'van' THEN 'wagon'
+            ELSE 'coupe'
+          END
+        FROM worries;
+        DROP TABLE worries;
+        ALTER TABLE worries_new RENAME TO worries;
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${LATEST_VERSION}`);

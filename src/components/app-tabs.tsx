@@ -3,7 +3,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Night } from '@/constants/theme';
 
 /**
- * The system tab bar, kept as is: three single-word, filled-symbol tabs. The only brand touch
+ * The system tab bar, kept as is: four single-word, filled-symbol tabs. The only brand touch
  * is the lamp-colored selected tab.
  */
 export default function AppTabs() {
@@ -16,6 +16,11 @@ export default function AppTabs() {
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Lot</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="car.fill" />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="garage">
+        <NativeTabs.Trigger.Label>Garage</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="car.2.fill" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="record">

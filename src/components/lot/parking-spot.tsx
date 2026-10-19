@@ -5,7 +5,6 @@ import Svg, { Path, Rect } from 'react-native-svg';
 
 import { Car } from '@/components/lot/car';
 import { ThemedText } from '@/components/themed-text';
-import type { CarKind } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Spots are 2 wide by 3 tall. The painted lines sit 9% in from each side. */
@@ -18,13 +17,13 @@ const CAR_WIDTH = 0.74;
 const CAR_HEIGHT = 0.74;
 const CAR_TOP = 0.07;
 
-type SpotCarProps = { kind: CarKind; spotWidth: number; lit?: boolean };
+type SpotCarProps = { carId: string; spotWidth: number; lit?: boolean };
 
 /** A car sized to sit neatly inside a spot of the given width. Used by spots and the visit screen. */
-export function SpotCar({ kind, spotWidth, lit }: SpotCarProps) {
+export function SpotCar({ carId, spotWidth, lit }: SpotCarProps) {
   return (
     <Car
-      kind={kind}
+      carId={carId}
       width={spotWidth * CAR_WIDTH}
       height={spotWidth * ASPECT * CAR_HEIGHT}
       lit={lit}
@@ -33,11 +32,11 @@ export function SpotCar({ kind, spotWidth, lit }: SpotCarProps) {
 }
 
 type Props = {
-  /** The painted number, 1 and up. */
-  number: number;
+  /** The painted number, 1 and up. Leave it off for a spot with no number yet. */
+  number?: number;
   width: number;
-  /** A car sitting in the spot. It settles in gently when the spot first appears. */
-  car?: { kind: CarKind; lit?: boolean };
+  /** A car (by catalog id) sitting in the spot. It settles in gently when the spot first appears. */
+  car?: { id: string; lit?: boolean };
   /** Replaces the default car, for screens that animate it themselves. */
   slot?: ReactNode;
   selected?: boolean;
@@ -88,17 +87,19 @@ export function ParkingSpot({
                 .delay(enterDelay)
                 .easing(Easing.out(Easing.cubic))
                 .reduceMotion(ReduceMotion.System)}>
-              <SpotCar kind={car!.kind} spotWidth={width} lit={car!.lit} />
+              <SpotCar carId={car!.id} spotWidth={width} lit={car!.lit} />
             </Animated.View>
           )}
         </View>
       )}
 
-      <View style={styles.number} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <ThemedText type="caption" themeColor="textSecondary">
-          {number}
-        </ThemedText>
-      </View>
+      {number !== undefined && (
+        <View style={styles.number} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <ThemedText type="caption" themeColor="textSecondary">
+            {number}
+          </ThemedText>
+        </View>
+      )}
     </View>
   );
 

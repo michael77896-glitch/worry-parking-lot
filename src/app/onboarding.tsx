@@ -61,7 +61,7 @@ export default function OnboardingScreen() {
 
   // A small picture for each how-it-works card.
   const pictures: ReactNode[] = [
-    <ParkingSpot key="spot" number={1} width={110} car={{ kind: 'beetle' }} />,
+    <ParkingSpot key="spot" number={1} width={110} car={{ id: 'city-car' }} />,
     width > 0 ? <Gate key="gate" open width={width} /> : null,
     <View key="ticket" style={styles.stretch}>
       <ParkingTicket label="A week later" value="Did it happen?" code="Space 1" />

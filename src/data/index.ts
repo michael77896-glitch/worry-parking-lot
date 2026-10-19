@@ -1,4 +1,4 @@
-export { CAR_KINDS, CAR_LABELS, isCarKind, randomCarKind, type CarKind } from './cars';
+export { DEFAULT_CAR_ID, isCarId, type CarId } from './cars';
 export { migrate } from './migrate';
 export {
   getOnboardingDone,

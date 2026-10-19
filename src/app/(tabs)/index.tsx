@@ -189,7 +189,7 @@ export default function LotScreen() {
                     key={`car-${worry.id}`}
                     number={index + 1}
                     width={spotWidth}
-                    car={{ kind: worry.car, lit: ready }}
+                    car={{ id: worry.car, lit: ready }}
                     enterDelay={index * 90}
                     selected={worry.id === selected?.id}
                     onPress={() => setSelectedId(worry.id)}

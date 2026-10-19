@@ -1,22 +1,14 @@
-/** The six cars a worry can be parked as. Each has a picture in assets/cars/. */
-export const CAR_KINDS = ['hatchback', 'sedan', 'suv', 'pickup', 'beetle', 'van'] as const;
+/**
+ * The data layer only knows a car by its id, a short lowercase name like "coupe" or "kei-truck".
+ * Everything else about a car (its name, style group, picture, whether it's locked) lives in the
+ * catalog, src/constants/car-catalog.ts, so new cars never need a database change.
+ */
+export type CarId = string;
 
-export type CarKind = (typeof CAR_KINDS)[number];
+/** Used when a worry is parked without choosing a car. The screens always choose one. */
+export const DEFAULT_CAR_ID: CarId = 'coupe';
 
-export const CAR_LABELS: Record<CarKind, string> = {
-  hatchback: 'Hatchback',
-  sedan: 'Sedan',
-  suv: 'SUV',
-  pickup: 'Pickup',
-  beetle: 'Beetle',
-  van: 'Van',
-};
-
-export function isCarKind(value: unknown): value is CarKind {
-  return typeof value === 'string' && (CAR_KINDS as readonly string[]).includes(value);
-}
-
-/** A car chosen at random, for "surprise me". */
-export function randomCarKind(random: () => number = Math.random): CarKind {
-  return CAR_KINDS[Math.min(CAR_KINDS.length - 1, Math.floor(random() * CAR_KINDS.length))];
+/** Lowercase letters, digits, and single hyphens, e.g. "coupe", "kei-truck", "4x4". */
+export function isCarId(value: unknown): value is CarId {
+  return typeof value === 'string' && value.length <= 40 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(value);
 }

@@ -20,7 +20,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing } from '@/constants/theme';
 import {
-  type CarKind,
   getSettings,
   isWindowOpen,
   listWorries,
@@ -56,7 +55,7 @@ const LEAVE_MS = 450;
 const SPOT_WIDTH = 132;
 
 /** The car being visited. "Let it go" drives it out of the lot; the other choices fade it back. */
-function VisitedCar({ kind, leaving }: { kind: CarKind; leaving: 'drive' | 'fade' | null }) {
+function VisitedCar({ carId, leaving }: { carId: string; leaving: 'drive' | 'fade' | null }) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -78,7 +77,7 @@ function VisitedCar({ kind, leaving }: { kind: CarKind; leaving: 'drive' | 'fade
 
   return (
     <Animated.View style={style}>
-      <SpotCar kind={kind} spotWidth={SPOT_WIDTH} lit />
+      <SpotCar carId={carId} spotWidth={SPOT_WIDTH} lit />
     </Animated.View>
   );
 }
@@ -240,7 +239,7 @@ export default function ReviewScreen() {
               slot={
                 <VisitedCar
                   key={phase.queue[phase.index].id}
-                  kind={phase.queue[phase.index].car}
+                  carId={phase.queue[phase.index].car}
                   leaving={leaving}
                 />
               }

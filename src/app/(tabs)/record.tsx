@@ -43,7 +43,7 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: () => voi
   return (
     <ThemedView type="backgroundElement" style={styles.historyRow}>
       <View style={styles.historyBody}>
-        <Car kind={item.car} width={34} />
+        <Car carId={item.car} width={34} />
         <View style={styles.historyText}>
           <ThemedText numberOfLines={4}>{item.text}</ThemedText>
           {item.smallStep && (
