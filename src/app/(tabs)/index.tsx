@@ -175,7 +175,9 @@ export default function LotScreen() {
               {Array.from({ length: COLUMNS }).map((__, col) => {
                 const index = row * COLUMNS + col;
                 const worry = parked[index];
-                if (!worry) return <ParkingSpot key={index} number={index + 1} width={spotWidth} />;
+                if (!worry) {
+                  return <ParkingSpot key={`empty-${index}`} number={index + 1} width={spotWidth} />;
+                }
 
                 const ready = isReady(worry);
                 const parkedAt = formatDateTime(new Date(worry.parkedAt));
@@ -184,7 +186,7 @@ export default function LotScreen() {
                   : `Locked until ${formatWhen(opensFor(worry))}.`;
                 return (
                   <ParkingSpot
-                    key={worry.id}
+                    key={`car-${worry.id}`}
                     number={index + 1}
                     width={spotWidth}
                     car={{ color: CarColors[worry.id % CarColors.length], lit: ready }}
