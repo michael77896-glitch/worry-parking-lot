@@ -10,6 +10,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { addBox } from '@/data';
 
 import { forcedBoxType } from './forced-roll';
+import { ReelLab } from './reel-lab';
 
 async function give(db: SQLiteDatabase, rarity: Rarity) {
   const id = await addBox(db, forcedBoxType(rarity), `dev:${new Date().getTime()}:${rarity}`);
@@ -37,6 +38,7 @@ export function BoxTester() {
           onPress={() => void give(db, rarity)}
         />
       ))}
+      <ReelLab />
     </ThemedView>
   );
 }

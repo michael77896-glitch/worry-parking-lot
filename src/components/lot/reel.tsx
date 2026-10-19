@@ -67,20 +67,25 @@ const ReelCard = memo(function ReelCard({
   reward,
   background,
   textColor,
+  plain,
 }: {
   reward: Reward;
   background: string;
   textColor: string;
+  /** For the development reel lab: no pictures, just the flat card, to measure what pictures cost. */
+  plain: boolean;
 }) {
   const look = describeReward(reward);
 
   return (
     <View style={[styles.card, { backgroundColor: background }]}>
       <View style={styles.picture}>
-        {reward.kind === 'car' && <Car carId={reward.carId} width={52} height={74} />}
-        {reward.kind === 'part' && <PartTile slot={getPart(reward.partId)!.slot} rarity={reward.rarity} size={60} />}
-        {reward.kind === 'paint' && <PaintDot paintId={reward.paintId} size={58} />}
-        {reward.kind === 'golden' && <BoxArt type="golden" width={68} />}
+        {!plain && reward.kind === 'car' && <Car carId={reward.carId} width={52} height={74} />}
+        {!plain && reward.kind === 'part' && (
+          <PartTile slot={getPart(reward.partId)!.slot} rarity={reward.rarity} size={60} />
+        )}
+        {!plain && reward.kind === 'paint' && <PaintDot paintId={reward.paintId} size={58} />}
+        {!plain && reward.kind === 'golden' && <BoxArt type="golden" width={68} />}
       </View>
       <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.name, { color: textColor }]}>
         {look.name}
@@ -105,6 +110,8 @@ type Props = {
   /** Set to true when the spin has stopped, to pop the winner card and burst particles. */
   popped: boolean;
   gold: boolean;
+  /** Development reel lab only: draw plain cards without pictures. */
+  plain?: boolean;
   onTick: (cardIndex: number) => void;
   onLanded: () => void;
 };
@@ -125,6 +132,7 @@ export function CaseReel({
   running,
   popped,
   gold,
+  plain = false,
   onTick,
   onLanded,
 }: Props) {
@@ -213,10 +221,16 @@ export function CaseReel({
             <Animated.View
               key={i}
               style={[styles.winner, { shadowColor: winner.color, zIndex: 2 }, popStyle]}>
-              <ReelCard reward={reward} background={theme.backgroundElement} textColor={theme.text} />
+              <ReelCard reward={reward} background={theme.backgroundElement} textColor={theme.text} plain={plain} />
             </Animated.View>
           ) : (
-            <ReelCard key={i} reward={reward} background={theme.backgroundElement} textColor={theme.text} />
+            <ReelCard
+              key={i}
+              reward={reward}
+              background={theme.backgroundElement}
+              textColor={theme.text}
+              plain={plain}
+            />
           ),
         )}
       </Animated.View>
