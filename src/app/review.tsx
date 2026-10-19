@@ -13,14 +13,14 @@ import Animated, {
 
 import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
-import { Car } from '@/components/lot/car';
 import { Gate } from '@/components/lot/gate';
-import { ParkingSpot } from '@/components/lot/parking-spot';
+import { ParkingSpot, SpotCar } from '@/components/lot/parking-spot';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CarColors, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import {
+  type CarKind,
   getSettings,
   isWindowOpen,
   listWorries,
@@ -53,9 +53,10 @@ type Phase =
 type Choice = 'let_go' | 'small_step' | 'not_now';
 
 const LEAVE_MS = 450;
+const SPOT_WIDTH = 132;
 
 /** The car being visited. "Let it go" drives it out of the lot; the other choices fade it back. */
-function VisitedCar({ color, leaving }: { color: string; leaving: 'drive' | 'fade' | null }) {
+function VisitedCar({ kind, leaving }: { kind: CarKind; leaving: 'drive' | 'fade' | null }) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ function VisitedCar({ color, leaving }: { color: string; leaving: 'drive' | 'fad
 
   return (
     <Animated.View style={style}>
-      <Car color={color} width={72} lit />
+      <SpotCar kind={kind} spotWidth={SPOT_WIDTH} lit />
     </Animated.View>
   );
 }
@@ -234,12 +235,12 @@ export default function ReviewScreen() {
           <View style={styles.spot}>
             <ParkingSpot
               number={phase.index + 1}
-              width={120}
+              width={SPOT_WIDTH}
               selected
               slot={
                 <VisitedCar
                   key={phase.queue[phase.index].id}
-                  color={CarColors[phase.queue[phase.index].id % CarColors.length]}
+                  kind={phase.queue[phase.index].car}
                   leaving={leaving}
                 />
               }

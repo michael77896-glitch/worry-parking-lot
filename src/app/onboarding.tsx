@@ -11,7 +11,7 @@ import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { WindowPicker } from '@/components/window-picker';
 import { DISCLAIMER } from '@/constants/copy';
-import { CarColors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { DEFAULT_WINDOW, saveSettings } from '@/data';
 
 const HOW_IT_WORKS = [
@@ -61,7 +61,7 @@ export default function OnboardingScreen() {
 
   // A small picture for each how-it-works card.
   const pictures: ReactNode[] = [
-    <ParkingSpot key="spot" number={1} width={110} car={{ color: CarColors[0] }} />,
+    <ParkingSpot key="spot" number={1} width={110} car={{ kind: 'beetle' }} />,
     width > 0 ? <Gate key="gate" open width={width} /> : null,
     <View key="ticket" style={styles.stretch}>
       <ParkingTicket label="A week later" value="Did it happen?" code="Space 1" />

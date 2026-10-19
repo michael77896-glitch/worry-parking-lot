@@ -10,7 +10,7 @@ import { ParkingSpot } from '@/components/lot/parking-spot';
 import { ParkingTicket } from '@/components/lot/ticket';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { CarColors, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import {
   countDueFollowUps,
   currentWindow,
@@ -189,7 +189,7 @@ export default function LotScreen() {
                     key={`car-${worry.id}`}
                     number={index + 1}
                     width={spotWidth}
-                    car={{ color: CarColors[worry.id % CarColors.length], lit: ready }}
+                    car={{ kind: worry.car, lit: ready }}
                     enterDelay={index * 90}
                     selected={worry.id === selected?.id}
                     onPress={() => setSelectedId(worry.id)}

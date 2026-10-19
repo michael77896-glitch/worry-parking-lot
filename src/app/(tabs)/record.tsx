@@ -8,7 +8,7 @@ import { Car } from '@/components/lot/car';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CarColors, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import {
   deleteWorry,
   getStats,
@@ -43,7 +43,7 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: () => voi
   return (
     <ThemedView type="backgroundElement" style={styles.historyRow}>
       <View style={styles.historyBody}>
-        <Car color={CarColors[item.id % CarColors.length]} width={30} />
+        <Car kind={item.car} width={34} />
         <View style={styles.historyText}>
           <ThemedText numberOfLines={4}>{item.text}</ThemedText>
           {item.smallStep && (

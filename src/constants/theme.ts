@@ -47,9 +47,6 @@ export const NightHighContrast: Theme = {
   ticketTextSecondary: '#3F3A2E',
 };
 
-/** Muted car colors, picked per worry. Decoration only; every state also has text. */
-export const CarColors = ['#7FA8D1', '#8DBE9E', '#A89AD6', '#D6AA7C', '#7DBDB5', '#CB93A0'] as const;
-
 export const Fonts = {
   /** SF Pro Rounded: soft headings. */
   rounded: Platform.select({ ios: 'ui-rounded', default: 'normal' }),

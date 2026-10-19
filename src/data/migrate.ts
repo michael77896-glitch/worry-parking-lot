@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 /** Bump this and add a step below when the schema changes. */
-const LATEST_VERSION = 2;
+const LATEST_VERSION = 3;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
   // Deleted rows are overwritten with zeros, not left behind in the database file.
@@ -38,6 +38,15 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
         ALTER TABLE worries ADD COLUMN reviewChoice TEXT CHECK (reviewChoice IN ('let_go', 'small_step'));
         ALTER TABLE worries ADD COLUMN smallStep TEXT;
         UPDATE worries SET reviewChoice = 'let_go' WHERE reviewedAt IS NOT NULL;
+      `);
+    }
+    if (current < 3) {
+      // Which car the worry is parked as. Existing worries get one in rotation, by id.
+      await db.execAsync(`
+        ALTER TABLE worries ADD COLUMN car TEXT CHECK (car IN ('hatchback', 'sedan', 'suv', 'pickup', 'beetle', 'van'));
+        UPDATE worries SET car = CASE id % 6
+          WHEN 0 THEN 'hatchback' WHEN 1 THEN 'sedan' WHEN 2 THEN 'suv'
+          WHEN 3 THEN 'pickup' WHEN 4 THEN 'beetle' ELSE 'van' END;
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${LATEST_VERSION}`);

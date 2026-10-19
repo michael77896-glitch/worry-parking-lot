@@ -3,16 +3,41 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, FadeInDown, ReduceMotion } from 'react-native-reanimated';
 import Svg, { Path, Rect } from 'react-native-svg';
 
-import { Car, CAR_ASPECT } from '@/components/lot/car';
+import { Car } from '@/components/lot/car';
 import { ThemedText } from '@/components/themed-text';
+import type { CarKind } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
+
+/** Spots are 2 wide by 3 tall. The painted lines sit 9% in from each side. */
+const ASPECT = 1.5;
+/**
+ * The room a car gets inside the painted lines: 74% of the width and 74% of the height, starting
+ * 7% down. That leaves the bottom fifth clear for the painted space number.
+ */
+const CAR_WIDTH = 0.74;
+const CAR_HEIGHT = 0.74;
+const CAR_TOP = 0.07;
+
+type SpotCarProps = { kind: CarKind; spotWidth: number; lit?: boolean };
+
+/** A car sized to sit neatly inside a spot of the given width. Used by spots and the visit screen. */
+export function SpotCar({ kind, spotWidth, lit }: SpotCarProps) {
+  return (
+    <Car
+      kind={kind}
+      width={spotWidth * CAR_WIDTH}
+      height={spotWidth * ASPECT * CAR_HEIGHT}
+      lit={lit}
+    />
+  );
+}
 
 type Props = {
   /** The painted number, 1 and up. */
   number: number;
   width: number;
   /** A car sitting in the spot. It settles in gently when the spot first appears. */
-  car?: { color: string; lit?: boolean };
+  car?: { kind: CarKind; lit?: boolean };
   /** Replaces the default car, for screens that animate it themselves. */
   slot?: ReactNode;
   selected?: boolean;
@@ -36,8 +61,7 @@ export function ParkingSpot({
   accessibilityHint,
 }: Props) {
   const theme = useTheme();
-  const height = width * 1.5;
-  const carWidth = width * 0.6;
+  const height = width * ASPECT;
 
   const content = (
     <View style={{ width, height }}>
@@ -56,14 +80,15 @@ export function ParkingSpot({
       </Svg>
 
       {(slot || car) && (
-        <View style={[styles.carSlot, { top: height * 0.1, width, height: carWidth * CAR_ASPECT }]}>
+        <View
+          style={[styles.carSlot, { top: height * CAR_TOP, width, height: height * CAR_HEIGHT }]}>
           {slot ?? (
             <Animated.View
               entering={FadeInDown.duration(800)
                 .delay(enterDelay)
                 .easing(Easing.out(Easing.cubic))
                 .reduceMotion(ReduceMotion.System)}>
-              <Car color={car!.color} width={carWidth} lit={car!.lit} />
+              <SpotCar kind={car!.kind} spotWidth={width} lit={car!.lit} />
             </Animated.View>
           )}
         </View>

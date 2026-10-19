@@ -1,3 +1,5 @@
+import type { CarKind } from './cars';
+
 export type Outcome = 'happened' | 'partly' | 'did_not_happen';
 
 /** What the user chose when they visited a worry. */
@@ -8,6 +10,7 @@ export type ReviewDecision = { choice: 'let_go' } | { choice: 'small_step'; step
 
 type WorryBase = {
   id: number;
+  car: CarKind;
   /** UTC ISO timestamps. */
   parkedAt: string;
   unlocksAt: string;
@@ -30,6 +33,7 @@ export type Worry = LockedWorry | OpenWorry;
  */
 export type FollowUp = {
   id: number;
+  car: CarKind;
   text: string;
   parkedAt: string;
   reviewChoice: ReviewChoice | null;
@@ -39,6 +43,7 @@ export type FollowUp = {
 /** A reviewed worry for the record screen. Safe to include text: the user already read it. */
 export type HistoryItem = {
   id: number;
+  car: CarKind;
   text: string;
   parkedAt: string;
   /** The date the user visited it and made their choice. */
@@ -67,6 +72,7 @@ export type PendingFollowUp = {
 /** A worry that has not been reviewed yet, described without its text. */
 export type ParkedWorry = {
   id: number;
+  car: CarKind;
   parkedAt: string;
   unlocksAt: string;
 };

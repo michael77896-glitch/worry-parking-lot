@@ -9,7 +9,7 @@ import { Car } from '@/components/lot/car';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CarColors, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { listDueFollowUps, recordOutcome, type FollowUp, type Outcome } from '@/data';
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime } from '@/utils/format';
@@ -92,7 +92,7 @@ export default function FollowUpScreen() {
           </ThemedText>
           <ThemedView type="backgroundElement" style={styles.card}>
             <View style={styles.carRow}>
-              <Car color={CarColors[phase.queue[phase.index].id % CarColors.length]} width={34} />
+              <Car kind={phase.queue[phase.index].car} width={34} />
               <ThemedText type="small" themeColor="textSecondary" style={styles.parkedOn}>
                 You parked this on {formatDateTime(new Date(phase.queue[phase.index].parkedAt))}.
               </ThemedText>

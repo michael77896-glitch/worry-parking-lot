@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { isCarKind, randomCarKind, type CarKind } from './cars';
 import type {
   FollowUp,
   HistoryItem,
@@ -40,6 +41,7 @@ function unlockCutoff(now: Date): string {
 
 type Row = {
   id: number;
+  car: CarKind;
   parkedAt: string;
   unlocksAt: string;
   followUpDueAt: string;
@@ -49,23 +51,27 @@ type Row = {
   text: string | null;
 };
 
+/** Parks a worry as the given car, or a random one if none is given. Returns its id. */
 export async function parkWorry(
   db: SQLiteDatabase,
   text: string,
   settings: WindowSettings,
   now: Date = new Date(),
+  car: CarKind = randomCarKind(),
 ): Promise<number> {
   const trimmed = text.trim();
   if (trimmed.length === 0) throw new RangeError('A worry cannot be empty');
   if (trimmed.length > MAX_WORRY_LENGTH) {
     throw new RangeError(`A worry can be at most ${MAX_WORRY_LENGTH} characters`);
   }
+  if (!isCarKind(car)) throw new RangeError('Unknown car');
   const followUpDueAt = new Date(now.getTime() + FOLLOW_UP_DAYS * 24 * 60 * 60 * 1000);
   const result = await db.runAsync(
-    `INSERT INTO worries (text, parkedAt, unlocksAt, followUpDueAt)
-     VALUES ($text, $parkedAt, $unlocksAt, $followUpDueAt)`,
+    `INSERT INTO worries (text, car, parkedAt, unlocksAt, followUpDueAt)
+     VALUES ($text, $car, $parkedAt, $unlocksAt, $followUpDueAt)`,
     {
       $text: trimmed,
+      $car: car,
       $parkedAt: now.toISOString(),
       $unlocksAt: nextWindowOpen(now, settings).toISOString(),
       $followUpDueAt: followUpDueAt.toISOString(),
@@ -81,7 +87,7 @@ export async function listWorries(
   now: Date = new Date(),
 ): Promise<Worry[]> {
   const rows = await db.getAllAsync<Row>(
-    `SELECT id, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt,
+    `SELECT id, car, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt,
             CASE WHEN ${READABLE} THEN text ELSE NULL END AS text
      FROM worries
      ORDER BY parkedAt DESC`,
@@ -95,7 +101,7 @@ export async function listWorries(
 /** Worries still waiting for review, newest first. Never selects the text column. */
 export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
   return db.getAllAsync<ParkedWorry>(
-    `SELECT id, parkedAt, unlocksAt FROM worries WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
+    `SELECT id, car, parkedAt, unlocksAt FROM worries WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
   );
 }
 
@@ -105,7 +111,7 @@ export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
  */
 export async function listDueFollowUps(db: SQLiteDatabase, now: Date = new Date()): Promise<FollowUp[]> {
   return db.getAllAsync<FollowUp>(
-    `SELECT id, text, parkedAt, reviewChoice, smallStep FROM worries
+    `SELECT id, car, text, parkedAt, reviewChoice, smallStep FROM worries
      WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt <= $now
      ORDER BY followUpDueAt ASC`,
     { $now: now.toISOString() },
@@ -149,7 +155,7 @@ export async function getStats(db: SQLiteDatabase): Promise<Stats> {
 /** Worries the user has already reviewed, newest first. Unreviewed worries are never included. */
 export async function listReviewed(db: SQLiteDatabase): Promise<HistoryItem[]> {
   return db.getAllAsync<HistoryItem>(
-    `SELECT id, text, parkedAt, reviewedAt, reviewChoice, smallStep, followUpDueAt, outcome FROM worries
+    `SELECT id, car, text, parkedAt, reviewedAt, reviewChoice, smallStep, followUpDueAt, outcome FROM worries
      WHERE reviewedAt IS NOT NULL
      ORDER BY parkedAt DESC`,
   );

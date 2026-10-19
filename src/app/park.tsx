@@ -5,19 +5,29 @@ import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
+import { CarPicker, type CarChoice } from '@/components/lot/car-picker';
 import { ParkingSpot } from '@/components/lot/parking-spot';
 import { ParkingTicket } from '@/components/lot/ticket';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { CarColors, Radius, Spacing } from '@/constants/theme';
-import { getSettings, listParked, MAX_WORRY_LENGTH, nextWindowOpen, parkWorry } from '@/data';
+import { Radius, Spacing } from '@/constants/theme';
+import {
+  CAR_LABELS,
+  getSettings,
+  listParked,
+  MAX_WORRY_LENGTH,
+  nextWindowOpen,
+  parkWorry,
+  randomCarKind,
+  type CarKind,
+} from '@/data';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDateTime, formatWhen } from '@/utils/format';
 
 /** Show the character count only when the user is getting close to the limit. */
 const COUNTER_THRESHOLD = MAX_WORRY_LENGTH - 200;
 
-type Parked = { id: number; space: number; parkedAt: Date; unlocksAt: Date };
+type Parked = { id: number; car: CarKind; space: number; parkedAt: Date; unlocksAt: Date };
 
 export default function ParkWorryScreen() {
   const db = useSQLiteContext();
@@ -25,6 +35,7 @@ export default function ParkWorryScreen() {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
   const [parked, setParked] = useState<Parked | null>(null);
+  const [carChoice, setCarChoice] = useState<CarChoice>('random');
 
   const canPark = text.trim().length > 0 && !saving;
 
@@ -34,11 +45,13 @@ export default function ParkWorryScreen() {
     try {
       const now = new Date();
       const settings = await getSettings(db);
-      const id = await parkWorry(db, text, settings, now);
+      // "Surprise me" is decided here, so the confirmation can show which car it turned out to be.
+      const car = carChoice === 'random' ? randomCarKind() : carChoice;
+      const id = await parkWorry(db, text, settings, now, car);
       const space = (await listParked(db)).length;
       // The text is cleared as soon as it is saved and is never shown again until the gate opens.
       setText('');
-      setParked({ id, space, parkedAt: now, unlocksAt: nextWindowOpen(now, settings) });
+      setParked({ id, car, space, parkedAt: now, unlocksAt: nextWindowOpen(now, settings) });
     } catch {
       Alert.alert("Couldn't park that", 'Your worry was not saved. Please try again.');
     } finally {
@@ -52,15 +65,16 @@ export default function ParkWorryScreen() {
         <BackLink />
         <ThemedText type="subtitle">Parked.</ThemedText>
         <ThemedText>
-          Your car is in space {parked.space}. The gate opens {formatWhen(parked.unlocksAt)}. You
-          don&apos;t have to hold onto it until then.
+          Your {CAR_LABELS[parked.car].toLowerCase()} is in space {parked.space}. The gate opens{' '}
+          {formatWhen(parked.unlocksAt)}. You don&apos;t have to hold onto it until then.
         </ThemedText>
         <View style={styles.spot}>
           <ParkingSpot
             number={parked.space}
-            width={132}
-            car={{ color: CarColors[parked.id % CarColors.length] }}
+            width={140}
+            car={{ kind: parked.car }}
             enterDelay={150}
+            accessibilityLabel={`Your ${CAR_LABELS[parked.car].toLowerCase()} in space ${parked.space}`}
           />
         </View>
         <ParkingTicket
@@ -104,6 +118,10 @@ export default function ParkWorryScreen() {
           {text.length} / {MAX_WORRY_LENGTH}
         </ThemedText>
       )}
+      <ThemedText type="headline" accessibilityRole="header">
+        Pick a car
+      </ThemedText>
+      <CarPicker value={carChoice} onChange={setCarChoice} />
       <Button
         label={saving ? 'Parking…' : 'Park it'}
         onPress={park}
