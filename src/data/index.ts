@@ -1,6 +1,14 @@
 export { DEFAULT_CAR_ID, isCarId, type CarId } from './cars';
 export { migrate } from './migrate';
-export { nextSinceEpic, rollBox, type Reward, type Roll } from './loot';
+export {
+  buildReel,
+  nextSinceEpic,
+  REEL_LENGTH,
+  REEL_WINNER_INDEX,
+  rollBox,
+  type Reward,
+  type Roll,
+} from './loot';
 export {
   addBox,
   addTokens,
@@ -38,11 +46,15 @@ export {
 } from './rewards';
 export {
   getOnboardingDone,
+  getQuickOpening,
   getRemindersEnabled,
   getSettings,
+  getSoundEnabled,
   saveOnboardingDone,
+  saveQuickOpening,
   saveRemindersEnabled,
   saveSettings,
+  saveSoundEnabled,
 } from './settings';
 export type {
   FollowUp,

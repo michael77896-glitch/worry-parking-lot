@@ -73,6 +73,30 @@ export function rollBox(type: BoxType, sinceEpic: number, random: () => number =
   return { reward: { kind: 'part', partId: pickOne(parts, random).id, rarity }, byPity };
 }
 
+export const REEL_LENGTH = 60;
+/** Where the real reward sits in the reel. Far enough in for the spin to build speed. */
+export const REEL_WINNER_INDEX = 48;
+
+/**
+ * The strip of cards that spins past the marker when a box opens. The real reward was already
+ * decided (by `rollBox`) before this is built; the strip is made to land on it.
+ *
+ * The other cards are filler rolled from the same odds as the box (without the guaranteed-Epic
+ * rule), so the strip looks like what the box really holds. Nothing is arranged: the cards next to
+ * the winner are ordinary filler, so there are no staged near-misses. A test checks this.
+ */
+export function buildReel(
+  type: BoxType,
+  winner: Reward,
+  random: () => number = Math.random,
+  length: number = REEL_LENGTH,
+  winnerIndex: number = REEL_WINNER_INDEX,
+): { cards: Reward[]; winnerIndex: number } {
+  const cards: Reward[] = [];
+  for (let i = 0; i < length; i++) cards.push(i === winnerIndex ? winner : rollBox(type, 0, random).reward);
+  return { cards, winnerIndex };
+}
+
 /** How many boxes have passed since the last Epic-or-better, after a box that gave `reward`. */
 export function nextSinceEpic(previous: number, reward: Reward): number {
   if (reward.kind === 'golden') return 0;
