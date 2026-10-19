@@ -26,6 +26,13 @@ import {
 import { useTheme } from '@/hooks/use-theme';
 import { ownedCarName, paintName } from '@/utils/garage';
 
+// Development-only panel for trying every rarity. The `require` sits behind `__DEV__` so release
+// builds don't bundle it at all.
+const BoxTester: React.ComponentType | undefined = __DEV__
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/dev/box-tester').BoxTester
+  : undefined;
+
 const COLUMNS = 2;
 const GAP = 12;
 const PICTURE_HEIGHT = 150;
@@ -198,6 +205,8 @@ export default function GarageScreen() {
               </ThemedText>
             </Pressable>
           </ThemedView>
+
+          {BoxTester && <BoxTester />}
 
           <Button label="Mod shop" variant="secondary" onPress={() => router.push('/shop')} />
 

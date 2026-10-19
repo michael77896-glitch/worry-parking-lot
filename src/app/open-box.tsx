@@ -28,7 +28,7 @@ import { ThemedText } from '@/components/themed-text';
 import { getCar } from '@/constants/car-catalog';
 import { getPaint } from '@/constants/paints';
 import { getPart, SLOT_LABEL } from '@/constants/parts';
-import { RARITY_LABEL } from '@/constants/rarity';
+import { RARITIES, RARITY_LABEL, type Rarity } from '@/constants/rarity';
 import { BOX_LABEL } from '@/constants/rewards';
 import { Radius, Spacing } from '@/constants/theme';
 import {
@@ -44,6 +44,12 @@ import { useOpeningPrefs } from '@/hooks/use-opening-prefs';
 import { useTheme } from '@/hooks/use-theme';
 import { burstHaptic, createSfx, landHaptic, revealSfx, shakeHaptic, tickHaptic, type Sfx } from '@/utils/feedback';
 import { describeReward } from '@/utils/rewards-ui';
+
+// Development only: lets the Garage's test boxes hold a chosen rarity. Not bundled in release builds.
+const forcedRandom: ((rarity: Rarity) => () => number) | undefined = __DEV__
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/dev/forced-roll').forcedRandom
+  : undefined;
 
 const SHAKE_MS = 1000;
 const BURST_MS = 380;
@@ -98,7 +104,7 @@ export default function OpenBoxScreen() {
   const reducedMotion = useReducedMotion();
   const { width: windowWidth } = useWindowDimensions();
   const prefs = useOpeningPrefs();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, force } = useLocalSearchParams<{ id: string; force?: string }>();
   const boxId = Number(id);
 
   const [box, setBox] = useState<Box | null>(null);
@@ -185,7 +191,8 @@ export default function OpenBoxScreen() {
     setBusy(true);
     try {
       // The reward is decided and saved first. Everything after this only shows it.
-      const { box: opened } = await openBox(db, boxId);
+      const forced = force && (RARITIES as readonly string[]).includes(force) ? (force as Rarity) : null;
+      const { box: opened } = await openBox(db, boxId, new Date(), forced && forcedRandom ? forcedRandom(forced) : undefined);
       await refresh(opened);
       const won = opened.result!.reward;
       const wonLook = describeReward(won);
