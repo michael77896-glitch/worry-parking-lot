@@ -1,6 +1,14 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { FollowUp, Outcome, ParkedWorry, PendingFollowUp, Worry } from './types';
+import type {
+  FollowUp,
+  HistoryItem,
+  Outcome,
+  ParkedWorry,
+  PendingFollowUp,
+  Stats,
+  Worry,
+} from './types';
 import { isWindowOpen, nextWindowOpen, type WindowSettings } from './window';
 
 export const MAX_WORRY_LENGTH = 2000;
@@ -111,6 +119,27 @@ export async function listUpcomingFollowUps(
      WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt > $now
      ORDER BY followUpDueAt ASC`,
     { $now: now.toISOString() },
+  );
+}
+
+export async function getStats(db: SQLiteDatabase): Promise<Stats> {
+  const row = await db.getFirstAsync<Stats>(
+    `SELECT COUNT(*) AS parked,
+            COALESCE(SUM(outcome IS NOT NULL), 0) AS lookedBack,
+            COALESCE(SUM(outcome = 'happened'), 0) AS happened,
+            COALESCE(SUM(outcome = 'partly'), 0) AS partly,
+            COALESCE(SUM(outcome = 'did_not_happen'), 0) AS didNotHappen
+     FROM worries`,
+  );
+  return row ?? { parked: 0, lookedBack: 0, happened: 0, partly: 0, didNotHappen: 0 };
+}
+
+/** Worries the user has already reviewed, newest first. Unreviewed worries are never included. */
+export async function listReviewed(db: SQLiteDatabase): Promise<HistoryItem[]> {
+  return db.getAllAsync<HistoryItem>(
+    `SELECT id, text, parkedAt, followUpDueAt, outcome FROM worries
+     WHERE reviewedAt IS NOT NULL
+     ORDER BY parkedAt DESC`,
   );
 }
 

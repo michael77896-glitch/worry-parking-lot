@@ -7,11 +7,13 @@ export {
 } from './settings';
 export type {
   FollowUp,
+  HistoryItem,
   LockedWorry,
   OpenWorry,
   Outcome,
   ParkedWorry,
   PendingFollowUp,
+  Stats,
   Worry,
 } from './types';
 export {
@@ -20,8 +22,10 @@ export {
   countDueFollowUps,
   deleteAllData,
   deleteWorry,
+  getStats,
   listDueFollowUps,
   listParked,
+  listReviewed,
   listUpcomingFollowUps,
   listWorries,
   markReviewed,

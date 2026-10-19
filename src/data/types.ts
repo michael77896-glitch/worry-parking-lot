@@ -28,6 +28,24 @@ export type FollowUp = {
   parkedAt: string;
 };
 
+/** A reviewed worry for the record screen. Safe to include text: the user already read it. */
+export type HistoryItem = {
+  id: number;
+  text: string;
+  parkedAt: string;
+  followUpDueAt: string;
+  outcome: Outcome | null;
+};
+
+/** Plain counts across every worry. No percentages or scores. */
+export type Stats = {
+  parked: number;
+  lookedBack: number;
+  happened: number;
+  partly: number;
+  didNotHappen: number;
+};
+
 /** A reviewed worry still waiting for its check-in, described without its text. */
 export type PendingFollowUp = {
   id: number;

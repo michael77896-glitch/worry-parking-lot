@@ -17,6 +17,11 @@ export default function AppTabs() {
         <NativeTabs.Trigger.Icon sf="car" />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="record">
+        <NativeTabs.Trigger.Label>Record</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="list.bullet" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="gearshape" />
