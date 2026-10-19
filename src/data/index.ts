@@ -5,13 +5,24 @@ export {
   saveRemindersEnabled,
   saveSettings,
 } from './settings';
-export type { LockedWorry, OpenWorry, Outcome, ParkedWorry, Worry } from './types';
+export type {
+  FollowUp,
+  LockedWorry,
+  OpenWorry,
+  Outcome,
+  ParkedWorry,
+  PendingFollowUp,
+  Worry,
+} from './types';
 export {
   FOLLOW_UP_DAYS,
   MAX_WORRY_LENGTH,
+  countDueFollowUps,
   deleteAllData,
   deleteWorry,
+  listDueFollowUps,
   listParked,
+  listUpcomingFollowUps,
   listWorries,
   markReviewed,
   parkWorry,

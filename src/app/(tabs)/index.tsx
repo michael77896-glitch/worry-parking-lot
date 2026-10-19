@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import {
+  countDueFollowUps,
   currentWindow,
   getSettings,
   listParked,
@@ -19,7 +20,12 @@ import {
 } from '@/data';
 import { formatDateTime, formatTime, formatWhen } from '@/utils/format';
 
-type Snapshot = { now: Date; settings: WindowSettings; parked: ParkedWorry[] };
+type Snapshot = {
+  now: Date;
+  settings: WindowSettings;
+  parked: ParkedWorry[];
+  dueFollowUps: number;
+};
 
 /** One parked worry. Deliberately shows when it was parked and when it opens, never what it says. */
 function ParkedRow({ worry, snapshot }: { worry: ParkedWorry; snapshot: Snapshot }) {
@@ -56,7 +62,8 @@ export default function ParkingLotScreen() {
         const now = new Date();
         const settings = await getSettings(db);
         const parked = await listParked(db);
-        if (active) setSnapshot({ now, settings, parked });
+        const dueFollowUps = await countDueFollowUps(db, now);
+        if (active) setSnapshot({ now, settings, parked, dueFollowUps });
       })();
       return () => {
         active = false;
@@ -87,9 +94,21 @@ export default function ParkingLotScreen() {
               onPress={() => router.push('/review')}
             />
           )}
+          {snapshot.dueFollowUps > 0 && (
+            <Button
+              label={
+                snapshot.dueFollowUps === 1
+                  ? 'Look back at 1 worry'
+                  : `Look back at ${snapshot.dueFollowUps} worries`
+              }
+              variant={readyCount > 0 ? 'secondary' : 'primary'}
+              onPress={() => router.push('/followup')}
+              accessibilityHint="Answer whether worries from a week ago actually happened"
+            />
+          )}
           <Button
             label="Park a worry"
-            variant={readyCount > 0 ? 'secondary' : 'primary'}
+            variant={readyCount > 0 || snapshot.dueFollowUps > 0 ? 'secondary' : 'primary'}
             onPress={() => router.push('/park')}
           />
 

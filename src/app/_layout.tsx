@@ -5,6 +5,7 @@ import { useColorScheme, View } from 'react-native';
 
 import { CrisisButton } from '@/components/crisis-button';
 import { migrate } from '@/data';
+import { NotificationRouter } from '@/notifications/notification-router';
 import { configureNotifications } from '@/notifications/reminders';
 
 configureNotifications();
@@ -24,6 +25,7 @@ export default function RootLayout() {
               />
             </Stack>
             <CrisisButton />
+            <NotificationRouter />
           </View>
         </SQLiteProvider>
       </Suspense>

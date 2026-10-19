@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { Outcome, ParkedWorry, Worry } from './types';
+import type { FollowUp, Outcome, ParkedWorry, PendingFollowUp, Worry } from './types';
 import { isWindowOpen, nextWindowOpen, type WindowSettings } from './window';
 
 export const MAX_WORRY_LENGTH = 2000;
@@ -76,6 +76,41 @@ export async function listWorries(
 export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
   return db.getAllAsync<ParkedWorry>(
     `SELECT id, parkedAt, unlocksAt FROM worries WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
+  );
+}
+
+/**
+ * Check-ins that are due: reviewed, unanswered, and at least FOLLOW_UP_DAYS after parking.
+ * A worry that was never reviewed is not asked about, because the user hasn't read it yet.
+ */
+export async function listDueFollowUps(db: SQLiteDatabase, now: Date = new Date()): Promise<FollowUp[]> {
+  return db.getAllAsync<FollowUp>(
+    `SELECT id, text, parkedAt FROM worries
+     WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt <= $now
+     ORDER BY followUpDueAt ASC`,
+    { $now: now.toISOString() },
+  );
+}
+
+export async function countDueFollowUps(db: SQLiteDatabase, now: Date = new Date()): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM worries
+     WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt <= $now`,
+    { $now: now.toISOString() },
+  );
+  return row?.n ?? 0;
+}
+
+/** Reviewed worries whose check-in is still in the future, soonest first. No text. */
+export async function listUpcomingFollowUps(
+  db: SQLiteDatabase,
+  now: Date = new Date(),
+): Promise<PendingFollowUp[]> {
+  return db.getAllAsync<PendingFollowUp>(
+    `SELECT id, followUpDueAt FROM worries
+     WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt > $now
+     ORDER BY followUpDueAt ASC`,
+    { $now: now.toISOString() },
   );
 }
 

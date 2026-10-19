@@ -18,6 +18,7 @@ import {
   type OpenWorry,
   type WindowSettings,
 } from '@/data';
+import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatWhen } from '@/utils/format';
 
 type Phase =
@@ -82,6 +83,7 @@ export default function ReviewScreen() {
         if (!ok) {
           // The window closed while this worry was on screen: it stays parked.
           setPhase({ kind: 'done', released, kept: kept + 1 + remainingAfter, windowClosed: true });
+          if (released > 0) void syncFollowUpReminders(db);
           return;
         }
         released += 1;
@@ -91,8 +93,10 @@ export default function ReviewScreen() {
 
       if (remainingAfter === 0) {
         setPhase({ kind: 'done', released, kept, windowClosed: false });
+        if (released > 0) void syncFollowUpReminders(db);
       } else if (!isWindowOpen(new Date(), settings)) {
         setPhase({ kind: 'done', released, kept: kept + remainingAfter, windowClosed: true });
+        if (released > 0) void syncFollowUpReminders(db);
       } else {
         setPhase({ kind: 'reviewing', queue, index: index + 1, released, kept, settings });
       }

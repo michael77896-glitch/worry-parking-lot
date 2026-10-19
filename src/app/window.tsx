@@ -16,6 +16,7 @@ import {
   saveSettings,
 } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
+import { syncFollowUpReminders } from '@/notifications/followups';
 import {
   cancelWindowReminder,
   getReminderPermission,
@@ -82,6 +83,7 @@ export default function WorryWindowScreen() {
       }
       if (!remindersOn) await cancelWindowReminder();
       await saveRemindersEnabled(db, remindersOn);
+      await syncFollowUpReminders(db);
 
       setMessage(
         wantReminders && !remindersOn
