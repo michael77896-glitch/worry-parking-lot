@@ -43,7 +43,7 @@ import {
 import type { FrameReport } from '@/dev/frame-meter';
 import { useOpeningPrefs } from '@/hooks/use-opening-prefs';
 import { useTheme } from '@/hooks/use-theme';
-import { burstHaptic, createSfx, landHaptic, revealSfx, shakeHaptic, tickHaptic, type Sfx } from '@/utils/feedback';
+import { burstHaptic, createSfx, landHaptic, revealSfx, shakeHaptic, type Sfx } from '@/utils/feedback';
 import { describeReward } from '@/utils/rewards-ui';
 
 // Development only: lets the Garage's test boxes hold a chosen rarity. Not bundled in release builds.
@@ -62,11 +62,11 @@ const SHAKE_MS = 1000;
 const BURST_MS = 380;
 const SPIN_MS = 4200;
 /**
- * Ticks closer together than this are skipped. Haptics and sound run on the same thread that draws
- * the screen, so firing one for every one of the ~30 cards a second at the start of the spin
- * would itself make the reel stutter.
+ * Tick sounds closer together than this are skipped. Sound starts run on the same thread that draws
+ * the screen. (There are no haptics on the ticks: they were firing about 11 times a second during
+ * the fast part of the spin, and that is what made it stutter. Haptics are kept for the burst and
+ * for the landing.)
  */
-const MIN_TICK_GAP_MS = 90;
 const MIN_SOUND_GAP_MS = 150;
 /** How long after the reel appears before it starts to spin. */
 const SPIN_DELAY_MS = 170;
@@ -104,7 +104,7 @@ function PaintSwatch({ paintId }: { paintId: string }) {
 /**
  * Opening a box, like a case opening. Tap the box: it shakes harder and harder, then bursts open
  * with a strong haptic. A reel of item cards spins past a center marker and eases out over about
- * four seconds, with a light haptic tick and a sound for each card that passes. It stops on the
+ * four seconds, with a soft tick sound as cards pass (no haptic on each tick). It stops on the
  * reward. The reward was decided (and saved) before the spin, using the real odds: the reel is only
  * made to land on it. The winner pops, the screen gives one soft flash of its rarity color, and
  * particles burst out (gold gets more, a longer haptic, and a pause). Then the item is shown big.
@@ -132,7 +132,6 @@ export default function OpenBoxScreen() {
   const [stowed, setStowed] = useState(false);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const lastTick = useRef(0);
   const lastSound = useRef(0);
   const landedSound = useRef(false);
   const sfx = useRef<ReturnType<typeof createSfx> | null>(null);
@@ -265,13 +264,9 @@ export default function OpenBoxScreen() {
   }
 
   function onTick() {
+    // Sound only. At full speed the ticks blur into a rattle anyway, and each sound start is work
+    // on the thread that draws the screen, so they are spaced out.
     const now = Date.now();
-    if (now - lastTick.current >= MIN_TICK_GAP_MS) {
-      lastTick.current = now;
-      tickHaptic();
-    }
-    // The sound is spaced out more than the haptic: at full speed the ticks blur into a rattle
-    // anyway, and each sound start is work on the thread that draws the screen.
     if (now - lastSound.current >= MIN_SOUND_GAP_MS) {
       lastSound.current = now;
       play('tick');
