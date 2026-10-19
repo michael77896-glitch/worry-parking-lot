@@ -5,6 +5,9 @@ import { useColorScheme, View } from 'react-native';
 
 import { CrisisButton } from '@/components/crisis-button';
 import { migrate } from '@/data';
+import { configureNotifications } from '@/notifications/reminders';
+
+configureNotifications();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

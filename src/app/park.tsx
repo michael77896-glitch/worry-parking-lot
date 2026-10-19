@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput } from 'react-native';
+import { Alert, StyleSheet, TextInput } from 'react-native';
 
+import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
@@ -40,23 +41,10 @@ export default function ParkWorryScreen() {
     }
   }
 
-  const back = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Back"
-      onPress={() => router.back()}
-      hitSlop={8}
-      style={styles.back}>
-      <ThemedText type="default" themeColor="accent">
-        ‹ Back
-      </ThemedText>
-    </Pressable>
-  );
-
   if (unlocksAt) {
     return (
       <Screen>
-        {back}
+        <BackLink />
         <ThemedText type="subtitle">Parked.</ThemedText>
         <ThemedText>
           It&apos;s locked until your worry window opens, {formatWhen(unlocksAt)}. You
@@ -70,7 +58,7 @@ export default function ParkWorryScreen() {
 
   return (
     <Screen>
-      {back}
+      <BackLink />
       <ThemedText type="subtitle">Park a worry</ThemedText>
       <ThemedText themeColor="textSecondary">
         Write it down here. It stays locked until your worry window, so you can set it down for now.
@@ -102,7 +90,6 @@ export default function ParkWorryScreen() {
 }
 
 const styles = StyleSheet.create({
-  back: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   input: {
     minHeight: 160,
     borderRadius: Spacing.three,

@@ -1,5 +1,10 @@
 export { migrate } from './migrate';
-export { getSettings, saveSettings } from './settings';
+export {
+  getRemindersEnabled,
+  getSettings,
+  saveRemindersEnabled,
+  saveSettings,
+} from './settings';
 export type { LockedWorry, OpenWorry, Outcome, ParkedWorry, Worry } from './types';
 export {
   FOLLOW_UP_DAYS,

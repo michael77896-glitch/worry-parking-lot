@@ -13,6 +13,22 @@ export async function getSettings(db: SQLiteDatabase): Promise<WindowSettings> {
   };
 }
 
+/** Whether the user wants a daily reminder at the start of their window. Off until they turn it on. */
+export async function getRemindersEnabled(db: SQLiteDatabase): Promise<boolean> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'remindersEnabled'`,
+  );
+  return row?.value === '1';
+}
+
+export async function saveRemindersEnabled(db: SQLiteDatabase, enabled: boolean): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('remindersEnabled', $value)
+     ON CONFLICT(key) DO UPDATE SET value = $value`,
+    { $value: enabled ? '1' : '0' },
+  );
+}
+
 export async function saveSettings(
   db: SQLiteDatabase,
   changes: Partial<WindowSettings>,
