@@ -1,7 +1,9 @@
 export { migrate } from './migrate';
 export {
+  getOnboardingDone,
   getRemindersEnabled,
   getSettings,
+  saveOnboardingDone,
   saveRemindersEnabled,
   saveSettings,
 } from './settings';

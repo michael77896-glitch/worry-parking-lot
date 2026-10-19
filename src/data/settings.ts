@@ -29,6 +29,21 @@ export async function saveRemindersEnabled(db: SQLiteDatabase, enabled: boolean)
   );
 }
 
+/** True once the user has finished the first-run walkthrough. */
+export async function getOnboardingDone(db: SQLiteDatabase): Promise<boolean> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'onboardingDone'`,
+  );
+  return row?.value === '1';
+}
+
+export async function saveOnboardingDone(db: SQLiteDatabase): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('onboardingDone', '1')
+     ON CONFLICT(key) DO UPDATE SET value = '1'`,
+  );
+}
+
 export async function saveSettings(
   db: SQLiteDatabase,
   changes: Partial<WindowSettings>,

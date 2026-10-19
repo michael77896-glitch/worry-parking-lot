@@ -1,12 +1,12 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Switch, View } from 'react-native';
 
 import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { WindowPicker } from '@/components/window-picker';
 import { Spacing } from '@/constants/theme';
 import {
   DEFAULT_WINDOW,
@@ -23,9 +23,6 @@ import {
   requestReminderPermission,
   scheduleWindowReminder,
 } from '@/notifications/reminders';
-import { dateFromMinutes } from '@/utils/format';
-
-const LENGTH_PRESETS = [10, 15, 20, 30, 45, 60];
 
 export default function WorryWindowScreen() {
   const db = useSQLiteContext();
@@ -57,8 +54,6 @@ export default function WorryWindowScreen() {
       active = false;
     };
   }, [db]);
-
-  const lengths = Array.from(new Set([...LENGTH_PRESETS, lengthMinutes])).sort((a, b) => a - b);
 
   async function save() {
     if (saving) return;
@@ -108,45 +103,12 @@ export default function WorryWindowScreen() {
 
       {loaded && (
         <>
-          <ThemedText type="smallBold" accessibilityRole="header">
-            Opens at
-          </ThemedText>
-          <View style={styles.picker}>
-            <DateTimePicker
-              value={dateFromMinutes(startMinutes)}
-              mode="time"
-              display="spinner"
-              onChange={(_event, date) => {
-                if (date) setStartMinutes(date.getHours() * 60 + date.getMinutes());
-              }}
-              accessibilityLabel="Time your worry window opens"
-            />
-          </View>
-
-          <ThemedText type="smallBold" accessibilityRole="header">
-            Stays open for
-          </ThemedText>
-          <View style={styles.chips}>
-            {lengths.map((m) => {
-              const selected = m === lengthMinutes;
-              return (
-                <Pressable
-                  key={m}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${m} minutes`}
-                  accessibilityState={{ selected }}
-                  onPress={() => setLengthMinutes(m)}
-                  style={[
-                    styles.chip,
-                    { backgroundColor: selected ? theme.accent : theme.backgroundElement },
-                  ]}>
-                  <ThemedText type="smallBold" themeColor={selected ? 'accentText' : 'text'}>
-                    {m} min
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <WindowPicker
+            startMinutes={startMinutes}
+            lengthMinutes={lengthMinutes}
+            onStartChange={setStartMinutes}
+            onLengthChange={setLengthMinutes}
+          />
 
           <View style={styles.switchRow}>
             <View style={styles.switchText}>
@@ -189,14 +151,6 @@ export default function WorryWindowScreen() {
 }
 
 const styles = StyleSheet.create({
-  picker: { alignItems: 'center' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  chip: {
-    minHeight: 44,
-    paddingHorizontal: Spacing.three,
-    borderRadius: 22,
-    justifyContent: 'center',
-  },
   switchRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.three },
   switchText: { flex: 1, gap: Spacing.one },
 });
