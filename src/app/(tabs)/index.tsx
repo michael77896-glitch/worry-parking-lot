@@ -64,6 +64,12 @@ export default function ParkingLotScreen() {
     }, [db]),
   );
 
+  const readyCount = snapshot
+    ? snapshot.parked.filter(
+        (w) => readableAt(new Date(w.unlocksAt), snapshot.now, snapshot.settings) <= snapshot.now,
+      ).length
+    : 0;
+
   return (
     <Screen>
       <ThemedText type="subtitle">Parking Lot</ThemedText>
@@ -75,7 +81,17 @@ export default function ParkingLotScreen() {
               : `Your next worry window opens ${formatWhen(nextWindowOpen(snapshot.now, snapshot.settings))}.`}
           </ThemedText>
 
-          <Button label="Park a worry" onPress={() => router.push('/park')} />
+          {readyCount > 0 && (
+            <Button
+              label={readyCount === 1 ? 'Review 1 worry' : `Review ${readyCount} worries`}
+              onPress={() => router.push('/review')}
+            />
+          )}
+          <Button
+            label="Park a worry"
+            variant={readyCount > 0 ? 'secondary' : 'primary'}
+            onPress={() => router.push('/park')}
+          />
 
           {snapshot.parked.length === 0 ? (
             <ThemedText>
