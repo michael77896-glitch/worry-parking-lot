@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
+import { Car } from '@/components/lot/car';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { CarColors, Radius, Spacing } from '@/constants/theme';
 import { listDueFollowUps, recordOutcome, type FollowUp, type Outcome } from '@/data';
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime } from '@/utils/format';
@@ -89,21 +90,20 @@ export default function FollowUpScreen() {
           <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite">
             {phase.index + 1} of {phase.queue.length}
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            You parked this on {formatDateTime(new Date(phase.queue[phase.index].parkedAt))}.
-          </ThemedText>
           <ThemedView type="backgroundElement" style={styles.card}>
+            <View style={styles.carRow}>
+              <Car color={CarColors[phase.queue[phase.index].id % CarColors.length]} width={34} />
+              <ThemedText type="small" themeColor="textSecondary" style={styles.parkedOn}>
+                You parked this on {formatDateTime(new Date(phase.queue[phase.index].parkedAt))}.
+              </ThemedText>
+            </View>
             <ThemedText style={styles.worryText}>{phase.queue[phase.index].text}</ThemedText>
           </ThemedView>
-          <ThemedText type="smallBold" accessibilityRole="header">
+          <ThemedText type="headline" accessibilityRole="header">
             Did this actually happen?
           </ThemedText>
           {CHOICES.map((c) => (
-            <Button
-              key={c.outcome}
-              label={c.label}
-              onPress={() => advance(c.outcome)}
-            />
+            <Button key={c.outcome} label={c.label} onPress={() => advance(c.outcome)} />
           ))}
           <Button
             label="Not now"
@@ -120,9 +120,7 @@ export default function FollowUpScreen() {
             {phase.answered === 0 ? 'No answers recorded this time.' : 'Thanks, that’s recorded.'}
           </ThemedText>
           {phase.skipped > 0 && (
-            <ThemedText themeColor="textSecondary">
-              {phase.skipped} left for another day.
-            </ThemedText>
+            <ThemedText themeColor="textSecondary">{phase.skipped} left for another day.</ThemedText>
           )}
           <Button label="Done" onPress={() => router.back()} />
         </>
@@ -132,6 +130,8 @@ export default function FollowUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Spacing.four, padding: Spacing.four },
+  card: { borderRadius: Radius.card, padding: Spacing.four, gap: Spacing.three },
+  carRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  parkedOn: { flex: 1 },
   worryText: { fontSize: 20, lineHeight: 30 },
 });

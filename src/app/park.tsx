@@ -1,26 +1,30 @@
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput } from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
 
 import { BackLink } from '@/components/back-link';
 import { Button } from '@/components/button';
+import { ParkingSpot } from '@/components/lot/parking-spot';
+import { ParkingTicket } from '@/components/lot/ticket';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { getSettings, MAX_WORRY_LENGTH, nextWindowOpen, parkWorry } from '@/data';
+import { CarColors, Radius, Spacing } from '@/constants/theme';
+import { getSettings, listParked, MAX_WORRY_LENGTH, nextWindowOpen, parkWorry } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
-import { formatWhen } from '@/utils/format';
+import { formatDateTime, formatWhen } from '@/utils/format';
 
 /** Show the character count only when the user is getting close to the limit. */
 const COUNTER_THRESHOLD = MAX_WORRY_LENGTH - 200;
+
+type Parked = { id: number; space: number; parkedAt: Date; unlocksAt: Date };
 
 export default function ParkWorryScreen() {
   const db = useSQLiteContext();
   const theme = useTheme();
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
-  const [unlocksAt, setUnlocksAt] = useState<Date | null>(null);
+  const [parked, setParked] = useState<Parked | null>(null);
 
   const canPark = text.trim().length > 0 && !saving;
 
@@ -30,10 +34,11 @@ export default function ParkWorryScreen() {
     try {
       const now = new Date();
       const settings = await getSettings(db);
-      await parkWorry(db, text, settings, now);
-      // The text is cleared as soon as it is saved and is never shown again until the window.
+      const id = await parkWorry(db, text, settings, now);
+      const space = (await listParked(db)).length;
+      // The text is cleared as soon as it is saved and is never shown again until the gate opens.
       setText('');
-      setUnlocksAt(nextWindowOpen(now, settings));
+      setParked({ id, space, parkedAt: now, unlocksAt: nextWindowOpen(now, settings) });
     } catch {
       Alert.alert("Couldn't park that", 'Your worry was not saved. Please try again.');
     } finally {
@@ -41,16 +46,30 @@ export default function ParkWorryScreen() {
     }
   }
 
-  if (unlocksAt) {
+  if (parked) {
     return (
       <Screen>
         <BackLink />
         <ThemedText type="subtitle">Parked.</ThemedText>
         <ThemedText>
-          It&apos;s locked until your worry window opens, {formatWhen(unlocksAt)}. You
+          Your car is in space {parked.space}. The gate opens {formatWhen(parked.unlocksAt)}. You
           don&apos;t have to hold onto it until then.
         </ThemedText>
-        <Button label="Park another" variant="secondary" onPress={() => setUnlocksAt(null)} />
+        <View style={styles.spot}>
+          <ParkingSpot
+            number={parked.space}
+            width={132}
+            car={{ color: CarColors[parked.id % CarColors.length] }}
+            enterDelay={150}
+          />
+        </View>
+        <ParkingTicket
+          code={`Space ${parked.space}`}
+          label="Gate opens for you"
+          value={formatWhen(parked.unlocksAt)}
+          stub={[{ label: 'Parked', value: formatDateTime(parked.parkedAt) }]}
+        />
+        <Button label="Park another" variant="secondary" onPress={() => setParked(null)} />
         <Button label="Done" onPress={() => router.back()} />
       </Screen>
     );
@@ -61,7 +80,8 @@ export default function ParkWorryScreen() {
       <BackLink />
       <ThemedText type="subtitle">Park a worry</ThemedText>
       <ThemedText themeColor="textSecondary">
-        Write it down here. It stays locked until your worry window, so you can set it down for now.
+        Write it down and leave it here. The gate stays closed until your worry window, so you can
+        set it down for now.
       </ThemedText>
       <TextInput
         value={text}
@@ -71,12 +91,16 @@ export default function ParkWorryScreen() {
         maxLength={MAX_WORRY_LENGTH}
         placeholder="What's on your mind?"
         placeholderTextColor={theme.textSecondary}
+        keyboardAppearance="dark"
         accessibilityLabel="Your worry"
         textAlignVertical="top"
-        style={[styles.input, { backgroundColor: theme.backgroundElement, color: theme.text }]}
+        style={[
+          styles.input,
+          { backgroundColor: theme.backgroundElement, borderColor: theme.border, color: theme.text },
+        ]}
       />
       {text.length >= COUNTER_THRESHOLD && (
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText type="caption" themeColor="textSecondary">
           {text.length} / {MAX_WORRY_LENGTH}
         </ThemedText>
       )}
@@ -91,10 +115,12 @@ export default function ParkWorryScreen() {
 
 const styles = StyleSheet.create({
   input: {
-    minHeight: 160,
-    borderRadius: Spacing.three,
+    minHeight: 168,
+    borderRadius: Radius.card,
+    borderWidth: 1,
     padding: Spacing.three,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 25,
   },
+  spot: { alignItems: 'center' },
 });

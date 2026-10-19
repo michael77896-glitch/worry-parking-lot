@@ -1,30 +1,31 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { Night } from '@/constants/theme';
 
+/**
+ * The system tab bar, kept as is: three single-word, filled-symbol tabs. The only brand touch
+ * is the lamp-colored selected tab.
+ */
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
-
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      backgroundColor={Night.background}
+      indicatorColor={Night.backgroundElement}
+      tintColor={Night.accent}
+      labelStyle={{ selected: { color: Night.text } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Parking Lot</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="car" />
+        <NativeTabs.Trigger.Label>Lot</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="car.fill" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="record">
         <NativeTabs.Trigger.Label>Record</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="list.bullet" />
+        <NativeTabs.Trigger.Icon sf="ticket.fill" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="gearshape" />
+        <NativeTabs.Trigger.Icon sf="gearshape.fill" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

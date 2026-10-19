@@ -32,6 +32,17 @@ These override convenience. If a task conflicts with one, stop and ask.
 - iPhone first. Support dark mode, Dynamic Type, and VoiceOver labels on every interactive element.
 - Don't hand-edit `ios/` or `android/` if they appear; configure in `app.json`.
 
+## Design: the night lot
+
+Each parked worry is a car in a painted parking space on dark asphalt. The worry window is when the gate barrier lifts and you can visit your cars. A parking ticket shows when a car's gate opens. Calm above all: soft night colors, slow animations, nothing flashing, no sound.
+
+- Palette and type live in `src/constants/theme.ts` (`Night`, plus a higher-contrast variant `useTheme()` picks when Increase Contrast is on). Use semantic tokens, never hex values in screens. The warm lamp `accent` is for the one primary action and "the gate is open"; the soft-coral `crisis` color is only for crisis help. Don't add red.
+- The app is dark-only on purpose (the lot at night is its identity); there's no in-app appearance switch. `Appearance.setColorScheme('dark')` keeps system alerts, keyboard, and pickers dark too.
+- Text uses the system font and scales with Dynamic Type; nothing below 13 pt, nothing lighter than regular. Headings use SF Pro Rounded (`title`, `subtitle`). Keep contrast at 4.5:1 or better for text (the numbers are in `theme.ts`).
+- Illustrations are in `src/components/lot/` (`Car`, `ParkingSpot`, `Gate`, `ParkingTicket`), drawn with `react-native-svg`. They are decorative: hide them from VoiceOver and put the meaning in text.
+- Motion: slow, one-shot (car settles in, gate lifts, car drives off). No looping animations. Use Reanimated with `ReduceMotion.System` so Reduce Motion is honored. Never make people wait on an animation longer than ~0.5 s.
+- State is never color alone: the gate and cars always have a written status.
+
 ## Commands
 
 ```bash

@@ -1,15 +1,17 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { useState } from 'react';
-import { Alert, StyleSheet } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { Gate } from '@/components/lot/gate';
+import { ParkingSpot } from '@/components/lot/parking-spot';
+import { ParkingTicket } from '@/components/lot/ticket';
 import { useOnboarding } from '@/components/onboarding-state';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { WindowPicker } from '@/components/window-picker';
 import { DISCLAIMER } from '@/constants/copy';
-import { Spacing } from '@/constants/theme';
+import { CarColors, Spacing } from '@/constants/theme';
 import { DEFAULT_WINDOW, saveSettings } from '@/data';
 
 const HOW_IT_WORKS = [
@@ -18,8 +20,8 @@ const HOW_IT_WORKS = [
     body: "When a worry is on your mind, write it down and park it. It's locked right away, so you can set it down for now.",
   },
   {
-    title: 'Visit it at your worry window',
-    body: 'Once a day, in a short window you choose, you can read what you parked. You decide whether to release each worry or keep it parked.',
+    title: 'Visit when the gate opens',
+    body: 'Once a day, the gate opens for a short worry window you choose. You can visit your cars, read what you parked, and decide what to do with each one.',
   },
   {
     title: 'Look back',
@@ -43,6 +45,7 @@ export default function OnboardingScreen() {
   const [startMinutes, setStartMinutes] = useState(DEFAULT_WINDOW.startMinutes);
   const [lengthMinutes, setLengthMinutes] = useState(DEFAULT_WINDOW.lengthMinutes);
   const [saving, setSaving] = useState(false);
+  const [width, setWidth] = useState(0);
 
   async function finish() {
     if (saving) return;
@@ -56,6 +59,15 @@ export default function OnboardingScreen() {
     }
   }
 
+  // A small picture for each how-it-works card.
+  const pictures: ReactNode[] = [
+    <ParkingSpot key="spot" number={1} width={110} car={{ color: CarColors[0] }} />,
+    width > 0 ? <Gate key="gate" open width={width} /> : null,
+    <View key="ticket" style={styles.stretch}>
+      <ParkingTicket label="A week later" value="Did it happen?" code="Space 1" />
+    </View>,
+  ];
+
   return (
     <Screen>
       <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite">
@@ -63,16 +75,19 @@ export default function OnboardingScreen() {
       </ThemedText>
 
       {page < ABOUT_PAGE && (
-        <ThemedView type="backgroundElement" style={styles.card}>
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={styles.page}>
+          <View style={styles.picture}>{pictures[page]}</View>
           <ThemedText type="subtitle">{HOW_IT_WORKS[page].title}</ThemedText>
-          <ThemedText style={styles.cardBody}>{HOW_IT_WORKS[page].body}</ThemedText>
-        </ThemedView>
+          <ThemedText style={styles.body}>{HOW_IT_WORKS[page].body}</ThemedText>
+        </View>
       )}
 
       {page === ABOUT_PAGE && (
         <>
           <ThemedText type="subtitle">Before you start</ThemedText>
-          <ThemedText>Everything you write stays on this phone. Nothing is sent anywhere.</ThemedText>
+          <ThemedText style={styles.body}>
+            Everything you write stays on this phone. Nothing is sent anywhere.
+          </ThemedText>
           <ThemedText themeColor="textSecondary">{DISCLAIMER}</ThemedText>
           <ThemedText themeColor="textSecondary">
             If you are in crisis, the Crisis help button at the top of every screen opens phone
@@ -85,8 +100,8 @@ export default function OnboardingScreen() {
         <>
           <ThemedText type="subtitle">Choose your worry window</ThemedText>
           <ThemedText themeColor="textSecondary">
-            This is the short time each day when you can read what you&apos;ve parked. You can
-            change it later in Settings, where you can also turn on a daily reminder.
+            This is when the gate opens each day, so you can visit your cars. You can change it
+            later in Settings, where you can also turn on a daily reminder.
           </ThemedText>
           <WindowPicker
             startMinutes={startMinutes}
@@ -105,14 +120,14 @@ export default function OnboardingScreen() {
       ) : (
         <Button label={saving ? 'Saving…' : 'Start'} onPress={finish} />
       )}
-      {page > 0 && (
-        <Button label="Back" variant="secondary" onPress={() => setPage(page - 1)} />
-      )}
+      {page > 0 && <Button label="Back" variant="secondary" onPress={() => setPage(page - 1)} />}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Spacing.four, padding: Spacing.four, gap: Spacing.three },
-  cardBody: { fontSize: 18, lineHeight: 28 },
+  page: { gap: Spacing.three },
+  picture: { alignItems: 'center', minHeight: 170, justifyContent: 'center' },
+  stretch: { alignSelf: 'stretch', width: '100%' },
+  body: { fontSize: 19, lineHeight: 28 },
 });

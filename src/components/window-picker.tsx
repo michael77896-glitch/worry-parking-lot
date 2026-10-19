@@ -30,6 +30,7 @@ export function WindowPicker({ startMinutes, lengthMinutes, onStartChange, onLen
           value={dateFromMinutes(startMinutes)}
           mode="time"
           display="spinner"
+          themeVariant="dark"
           onChange={(_event, date) => {
             if (date) onStartChange(date.getHours() * 60 + date.getMinutes());
           }}
@@ -52,7 +53,10 @@ export function WindowPicker({ startMinutes, lengthMinutes, onStartChange, onLen
               onPress={() => onLengthChange(m)}
               style={[
                 styles.chip,
-                { backgroundColor: selected ? theme.accent : theme.backgroundElement },
+                {
+                  backgroundColor: selected ? theme.accent : theme.backgroundElement,
+                  borderColor: selected ? theme.accent : theme.border,
+                },
               ]}>
               <ThemedText type="smallBold" themeColor={selected ? 'accentText' : 'text'}>
                 {m} min
@@ -72,6 +76,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing.three,
     borderRadius: 22,
+    borderWidth: 1,
     justifyContent: 'center',
   },
 });

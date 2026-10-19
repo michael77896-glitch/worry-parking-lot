@@ -4,10 +4,11 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { DeleteLink } from '@/components/delete-link';
+import { Car } from '@/components/lot/car';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { CarColors, Radius, Spacing } from '@/constants/theme';
 import {
   deleteWorry,
   getStats,
@@ -29,9 +30,7 @@ function StatRow({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.statRow} accessible accessibilityLabel={`${label}: ${value}`}>
       <ThemedText>{label}</ThemedText>
-      <ThemedText type="subtitle" style={styles.statValue}>
-        {value}
-      </ThemedText>
+      <ThemedText type="title">{value}</ThemedText>
     </View>
   );
 }
@@ -42,11 +41,16 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: () => voi
     : `Look back on ${formatDateTime(new Date(item.followUpDueAt))}`;
   return (
     <ThemedView type="backgroundElement" style={styles.historyRow}>
-      <ThemedText numberOfLines={4}>{item.text}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Parked {formatDateTime(new Date(item.parkedAt))}
-      </ThemedText>
-      <ThemedText type="smallBold">{status}</ThemedText>
+      <View style={styles.historyBody}>
+        <Car color={CarColors[item.id % CarColors.length]} width={30} />
+        <View style={styles.historyText}>
+          <ThemedText numberOfLines={4}>{item.text}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Parked {formatDateTime(new Date(item.parkedAt))}
+          </ThemedText>
+          <ThemedText type="smallBold">{status}</ThemedText>
+        </View>
+      </View>
       <DeleteLink onConfirmed={onDelete} />
     </ThemedView>
   );
@@ -92,12 +96,12 @@ export default function RecordScreen() {
 
           {data.history.length === 0 ? (
             <ThemedText themeColor="textSecondary">
-              Nothing to show yet. Once you&apos;ve reviewed a worry and looked back on it a week
+              Nothing to show yet. Once you&apos;ve visited a car and looked back on it a week
               after you parked it, what happened is recorded here.
             </ThemedText>
           ) : (
             <>
-              <ThemedText type="smallBold" accessibilityRole="header">
+              <ThemedText type="headline" accessibilityRole="header">
                 Past worries
               </ThemedText>
               {data.history.map((item) => (
@@ -112,8 +116,15 @@ export default function RecordScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Spacing.four, padding: Spacing.three, gap: Spacing.two },
+  card: { borderRadius: Radius.card, padding: Spacing.four, gap: Spacing.two },
   statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statValue: { fontSize: 24, lineHeight: 32 },
-  historyRow: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.one },
+  historyRow: {
+    borderRadius: Radius.card,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.one,
+    gap: Spacing.one,
+  },
+  historyBody: { flexDirection: 'row', gap: Spacing.three },
+  historyText: { flex: 1, gap: Spacing.one },
 });

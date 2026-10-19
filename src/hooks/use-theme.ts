@@ -1,14 +1,7 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
+import { Night, NightHighContrast, type Theme } from '@/constants/theme';
+import { useIncreasedContrast } from '@/hooks/use-increased-contrast';
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'dark' ? 'dark' : 'light';
-
-  return Colors[theme];
+/** The night palette, or its higher-contrast variant when Increase Contrast is on. */
+export function useTheme(): Theme {
+  return useIncreasedContrast() ? NightHighContrast : Night;
 }

@@ -1,15 +1,15 @@
 import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, type ThemeColor } from '@/constants/theme';
+import { Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Variant = 'primary' | 'secondary' | 'crisis';
 
-const VARIANTS: Record<Variant, { background: ThemeColor; text: ThemeColor }> = {
-  primary: { background: 'accent', text: 'accentText' },
-  secondary: { background: 'backgroundElement', text: 'text' },
-  crisis: { background: 'crisis', text: 'crisisText' },
+const VARIANTS: Record<Variant, { background: ThemeColor; text: ThemeColor; border: ThemeColor }> = {
+  primary: { background: 'accent', text: 'accentText', border: 'accent' },
+  secondary: { background: 'backgroundElement', text: 'text', border: 'border' },
+  crisis: { background: 'crisis', text: 'crisisText', border: 'crisis' },
 };
 
 type Props = {
@@ -19,6 +19,7 @@ type Props = {
   accessibilityHint?: string;
 };
 
+/** Capsule button, at least 52 pt tall. One primary button per screen; the rest are secondary. */
 export function Button({ label, onPress, variant = 'primary', accessibilityHint }: Props) {
   const theme = useTheme();
   const colors = VARIANTS[variant];
@@ -31,10 +32,10 @@ export function Button({ label, onPress, variant = 'primary', accessibilityHint 
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: theme[colors.background] },
+        { backgroundColor: theme[colors.background], borderColor: theme[colors.border] },
         pressed && styles.pressed,
       ]}>
-      <ThemedText type="default" style={styles.label} themeColor={colors.text}>
+      <ThemedText type="headline" style={styles.label} themeColor={colors.text}>
         {label}
       </ThemedText>
     </Pressable>
@@ -44,12 +45,13 @@ export function Button({ label, onPress, variant = 'primary', accessibilityHint 
 const styles = StyleSheet.create({
   button: {
     minHeight: 52,
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.button,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: { opacity: 0.75 },
-  label: { fontWeight: 600, textAlign: 'center' },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  label: { textAlign: 'center' },
 });

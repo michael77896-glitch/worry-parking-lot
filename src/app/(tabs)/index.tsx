@@ -1,14 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { DeleteLink } from '@/components/delete-link';
+import { Gate } from '@/components/lot/gate';
+import { ParkingSpot } from '@/components/lot/parking-spot';
+import { ParkingTicket } from '@/components/lot/ticket';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { CarColors, Spacing } from '@/constants/theme';
 import {
   countDueFollowUps,
   currentWindow,
@@ -23,52 +25,28 @@ import {
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime, formatTime, formatWhen } from '@/utils/format';
 
+const COLUMNS = 3;
+const GAP = 12;
+const MIN_ROWS = 2;
+
 type Snapshot = {
   now: Date;
   settings: WindowSettings;
+  /** Oldest first, so the first car parked is in space 1. */
   parked: ParkedWorry[];
   dueFollowUps: number;
 };
 
-/** One parked worry. Deliberately shows when it was parked and when it opens, never what it says. */
-function ParkedRow({
-  worry,
-  snapshot,
-  onDelete,
-}: {
-  worry: ParkedWorry;
-  snapshot: Snapshot;
-  onDelete: () => void;
-}) {
-  const { now, settings } = snapshot;
-  const parkedAt = formatDateTime(new Date(worry.parkedAt));
-  const opensAt = readableAt(new Date(worry.unlocksAt), now, settings);
-  const readyNow = opensAt <= now;
-  const status = readyNow
-    ? `Your worry window is open until ${formatTime(currentWindow(now, settings)!.closesAt)}.`
-    : `Locked until ${formatWhen(opensAt)}.`;
-
-  return (
-    <ThemedView type="backgroundElement" style={styles.row}>
-      <View accessible accessibilityLabel={`Worry parked ${parkedAt}. ${status}`} style={styles.info}>
-        <ThemedText type="smallBold">Parked {parkedAt}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {status}
-        </ThemedText>
-      </View>
-      <DeleteLink onConfirmed={onDelete} />
-    </ThemedView>
-  );
-}
-
-export default function ParkingLotScreen() {
+export default function LotScreen() {
   const db = useSQLiteContext();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [gridWidth, setGridWidth] = useState(0);
 
   const refresh = useCallback(async () => {
     const now = new Date();
     const settings = await getSettings(db);
-    const parked = await listParked(db);
+    const parked = (await listParked(db)).reverse();
     const dueFollowUps = await countDueFollowUps(db, now);
     setSnapshot({ now, settings, parked, dueFollowUps });
   }, [db]);
@@ -79,83 +57,146 @@ export default function ParkingLotScreen() {
     }, [refresh]),
   );
 
+  // Watch the gate: refresh the moment the window opens or closes, and when the app returns.
+  useEffect(() => {
+    if (!snapshot) return;
+    const { now, settings } = snapshot;
+    const window = currentWindow(now, settings);
+    const nextChange = window ? window.closesAt : nextWindowOpen(now, settings);
+    const delay = Math.min(nextChange.getTime() - Date.now() + 500, 2_000_000_000);
+    const timer = setTimeout(() => void refresh(), Math.max(delay, 1000));
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
+  }, [snapshot, refresh]);
+
   async function remove(id: number) {
     await deleteWorry(db, id);
+    setSelectedId(null);
     await refresh();
     void syncFollowUpReminders(db);
   }
 
-  const readyCount = snapshot
-    ? snapshot.parked.filter(
-        (w) => readableAt(new Date(w.unlocksAt), snapshot.now, snapshot.settings) <= snapshot.now,
-      ).length
-    : 0;
+  if (!snapshot) {
+    return (
+      <Screen>
+        <ThemedText type="subtitle">The Lot</ThemedText>
+      </Screen>
+    );
+  }
+
+  const { now, settings, parked, dueFollowUps } = snapshot;
+  const window = currentWindow(now, settings);
+  const isOpen = window !== null;
+  const opensFor = (w: ParkedWorry) => readableAt(new Date(w.unlocksAt), now, settings);
+  const isReady = (w: ParkedWorry) => opensFor(w) <= now;
+  const readyCount = parked.filter(isReady).length;
+
+  const selected = parked.find((w) => w.id === selectedId) ?? parked[0];
+  const selectedNumber = selected ? parked.indexOf(selected) + 1 : 0;
+
+  const spotWidth = gridWidth > 0 ? (gridWidth - GAP * (COLUMNS - 1)) / COLUMNS : 0;
+  const rows = Math.max(MIN_ROWS, Math.ceil(parked.length / COLUMNS));
 
   return (
     <Screen>
-      <ThemedText type="subtitle">Parking Lot</ThemedText>
-      {snapshot && (
-        <>
-          <ThemedText themeColor="textSecondary">
-            {currentWindow(snapshot.now, snapshot.settings)
-              ? 'Your worry window is open now.'
-              : `Your next worry window opens ${formatWhen(nextWindowOpen(snapshot.now, snapshot.settings))}.`}
-          </ThemedText>
+      <ThemedText type="subtitle">The Lot</ThemedText>
 
-          {readyCount > 0 && (
-            <Button
-              label={readyCount === 1 ? 'Review 1 worry' : `Review ${readyCount} worries`}
-              onPress={() => router.push('/review')}
-            />
-          )}
-          {snapshot.dueFollowUps > 0 && (
-            <Button
-              label={
-                snapshot.dueFollowUps === 1
-                  ? 'Look back at 1 worry'
-                  : `Look back at ${snapshot.dueFollowUps} worries`
-              }
-              variant={readyCount > 0 ? 'secondary' : 'primary'}
-              onPress={() => router.push('/followup')}
-              accessibilityHint="Answer whether worries from a week ago actually happened"
-            />
-          )}
-          <Button
-            label="Park a worry"
-            variant={readyCount > 0 || snapshot.dueFollowUps > 0 ? 'secondary' : 'primary'}
-            onPress={() => router.push('/park')}
+      <View
+        onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+        style={styles.gateWrap}>
+        {gridWidth > 0 && <Gate open={isOpen} width={gridWidth} />}
+      </View>
+      <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
+        {window
+          ? `The gate is open until ${formatTime(window.closesAt)}.`
+          : `The gate opens ${formatWhen(nextWindowOpen(now, settings))}.`}
+      </ThemedText>
+
+      {readyCount > 0 && (
+        <Button
+          label={readyCount === 1 ? 'Visit your car' : 'Visit your cars'}
+          onPress={() => router.push('/review')}
+          accessibilityHint="Read what you parked and decide what to do with each worry"
+        />
+      )}
+      {dueFollowUps > 0 && (
+        <Button
+          label={dueFollowUps === 1 ? 'Look back at 1 worry' : `Look back at ${dueFollowUps} worries`}
+          variant={readyCount > 0 ? 'secondary' : 'primary'}
+          onPress={() => router.push('/followup')}
+          accessibilityHint="Answer whether worries from a week ago actually happened"
+        />
+      )}
+      <Button
+        label="Park a worry"
+        variant={readyCount > 0 || dueFollowUps > 0 ? 'secondary' : 'primary'}
+        onPress={() => router.push('/park')}
+      />
+
+      {parked.length === 0 && (
+        <ThemedText>
+          The lot is empty. When something&apos;s on your mind, park it here and come back when the
+          gate opens.
+        </ThemedText>
+      )}
+
+      {spotWidth > 0 && (
+        <View style={styles.grid}>
+          {Array.from({ length: rows }).map((_, row) => (
+            <View key={row} style={styles.row}>
+              {Array.from({ length: COLUMNS }).map((__, col) => {
+                const index = row * COLUMNS + col;
+                const worry = parked[index];
+                if (!worry) return <ParkingSpot key={index} number={index + 1} width={spotWidth} />;
+
+                const ready = isReady(worry);
+                const parkedAt = formatDateTime(new Date(worry.parkedAt));
+                const status = ready
+                  ? 'Open to visit now.'
+                  : `Locked until ${formatWhen(opensFor(worry))}.`;
+                return (
+                  <ParkingSpot
+                    key={worry.id}
+                    number={index + 1}
+                    width={spotWidth}
+                    car={{ color: CarColors[worry.id % CarColors.length], lit: ready }}
+                    enterDelay={index * 90}
+                    selected={worry.id === selected?.id}
+                    onPress={() => setSelectedId(worry.id)}
+                    accessibilityLabel={`Space ${index + 1}. Worry parked ${parkedAt}. ${status}`}
+                    accessibilityHint="Shows its parking ticket"
+                  />
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {selected && (
+        <View style={styles.ticketWrap}>
+          <ParkingTicket
+            code={`Space ${selectedNumber}`}
+            label={isReady(selected) ? 'The gate is open' : 'Gate opens for you'}
+            value={isReady(selected) ? 'Open now' : formatWhen(opensFor(selected))}
+            note={window && isReady(selected) ? `Until ${formatTime(window.closesAt)}` : undefined}
+            stub={[{ label: 'Parked', value: formatDateTime(new Date(selected.parkedAt)) }]}
           />
-
-          {snapshot.parked.length === 0 ? (
-            <ThemedText>
-              Nothing is parked right now. When something&apos;s on your mind, you can park it here
-              and come back to it later.
-            </ThemedText>
-          ) : (
-            <>
-              <ThemedText type="smallBold" accessibilityRole="header">
-                {snapshot.parked.length === 1
-                  ? '1 worry parked'
-                  : `${snapshot.parked.length} worries parked`}
-              </ThemedText>
-              {snapshot.parked.map((w) => (
-                <ParkedRow key={w.id} worry={w} snapshot={snapshot} onDelete={() => remove(w.id)} />
-              ))}
-            </>
-          )}
-        </>
+          <DeleteLink onConfirmed={() => remove(selected.id)} />
+        </View>
       )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.one,
-    gap: Spacing.one,
-  },
-  info: { gap: Spacing.one },
+  gateWrap: { alignSelf: 'stretch' },
+  grid: { gap: GAP },
+  row: { flexDirection: 'row', gap: GAP },
+  ticketWrap: { gap: Spacing.two, marginTop: Spacing.two },
 });

@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CRISIS } from '@/constants/crisis';
 import { DISCLAIMER } from '@/constants/copy';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 
 /** Opens a phone, text, or web link. If the device can't, tells the user what to do by hand. */
 async function open(url: string, fallback: string) {
@@ -28,7 +28,7 @@ export default function CrisisScreen() {
         </ThemedText>
 
         <ThemedView type="backgroundElement" style={styles.card}>
-          <ThemedText type="subtitle" style={styles.cardTitle}>
+          <ThemedText type="title" accessibilityRole="header">
             {lifeline.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -55,7 +55,7 @@ export default function CrisisScreen() {
         </ThemedView>
 
         <ThemedView type="backgroundElement" style={styles.card}>
-          <ThemedText type="subtitle" style={styles.cardTitle}>
+          <ThemedText type="title" accessibilityRole="header">
             In immediate danger
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -70,7 +70,7 @@ export default function CrisisScreen() {
         </ThemedView>
 
         <ThemedView type="backgroundElement" style={styles.card}>
-          <ThemedText type="subtitle" style={styles.cardTitle}>
+          <ThemedText type="title" accessibilityRole="header">
             {crisisTextLine.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
@@ -118,9 +118,8 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   card: {
-    borderRadius: Spacing.four,
-    padding: Spacing.three,
-    gap: Spacing.two,
+    borderRadius: Radius.card,
+    padding: Spacing.four,
+    gap: Spacing.three,
   },
-  cardTitle: { fontSize: 22, lineHeight: 28 },
 });

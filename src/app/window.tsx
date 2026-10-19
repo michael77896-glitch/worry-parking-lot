@@ -97,8 +97,8 @@ export default function WorryWindowScreen() {
       <BackLink />
       <ThemedText type="subtitle">Worry window</ThemedText>
       <ThemedText themeColor="textSecondary">
-        Your worry window is a short time each day when you look at what you&apos;ve parked.
-        Worries stay locked the rest of the day.
+        Your worry window is when the gate opens each day, and you can visit your cars and read what
+        you parked. The gate stays closed the rest of the day.
       </ThemedText>
 
       {loaded && (

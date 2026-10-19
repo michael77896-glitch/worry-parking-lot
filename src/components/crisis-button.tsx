@@ -12,7 +12,7 @@ export const CRISIS_BAR_HEIGHT = 56;
 /**
  * Always-visible entry point to the crisis resources screen. Rendered once in the
  * root layout, above every screen. Don't present screens as native modals or sheets:
- * they draw above this button.
+ * they draw above this button. It is a steady soft-coral outline and never animates.
  */
 export function CrisisButton() {
   const pathname = usePathname();
@@ -36,7 +36,9 @@ export function CrisisButton() {
         },
         pressed && styles.pressed,
       ]}>
-      <ThemedText type="smallBold">Crisis help</ThemedText>
+      <ThemedText type="smallBold" capScale>
+        Crisis help
+      </ThemedText>
     </Pressable>
   );
 }
@@ -50,7 +52,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     justifyContent: 'center',
     borderRadius: 22,
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: 0.75 },
 });

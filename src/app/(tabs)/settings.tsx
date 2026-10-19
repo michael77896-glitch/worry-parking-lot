@@ -2,13 +2,15 @@ import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/button';
 import { useOnboarding } from '@/components/onboarding-state';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { DISCLAIMER } from '@/constants/copy';
+import { Radius, Spacing } from '@/constants/theme';
 import { deleteAllData, getSettings, type WindowSettings } from '@/data';
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { cancelWindowReminder } from '@/notifications/reminders';
@@ -58,35 +60,44 @@ export default function SettingsScreen() {
     <Screen>
       <ThemedText type="subtitle">Settings</ThemedText>
 
-      <ThemedText type="smallBold" accessibilityRole="header">
-        Worry window
-      </ThemedText>
-      {settings && (
-        <ThemedText themeColor="textSecondary">
-          Opens at {formatClock(settings.startMinutes)} for {settings.lengthMinutes} minutes.
+      <ThemedView type="backgroundElement" style={styles.card}>
+        <ThemedText type="headline" accessibilityRole="header">
+          Worry window
         </ThemedText>
-      )}
-      <Button label="Change worry window" variant="secondary" onPress={() => router.push('/window')} />
+        {settings && (
+          <ThemedText themeColor="textSecondary">
+            The gate opens at {formatClock(settings.startMinutes)} for {settings.lengthMinutes}{' '}
+            minutes.
+          </ThemedText>
+        )}
+        <Button label="Change worry window" variant="secondary" onPress={() => router.push('/window')} />
+      </ThemedView>
 
-      <ThemedText type="smallBold" accessibilityRole="header">
-        Your data
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        Everything you write stays on this phone. Nothing is sent anywhere. You can delete a single
-        worry from the Parking Lot or Record tab, or delete everything here.
-      </ThemedText>
-      <Button label="Delete all data" variant="secondary" onPress={confirmWipe} />
+      <ThemedView type="backgroundElement" style={styles.card}>
+        <ThemedText type="headline" accessibilityRole="header">
+          Your data
+        </ThemedText>
+        <ThemedText themeColor="textSecondary">
+          Everything you write stays on this phone. Nothing is sent anywhere. You can delete a
+          single worry from the Lot or Record tab, or delete everything here.
+        </ThemedText>
+        <Button label="Delete all data" variant="secondary" onPress={confirmWipe} />
+      </ThemedView>
 
-      <ThemedText type="smallBold" accessibilityRole="header">
-        About this app
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {DISCLAIMER}
-      </ThemedText>
-      <Button label="Crisis resources" variant="secondary" onPress={() => router.push('/crisis')} />
-      <ThemedText type="small" themeColor="textSecondary">
-        Version {Constants.expoConfig?.version ?? 'unknown'}
-      </ThemedText>
+      <ThemedView type="backgroundElement" style={styles.card}>
+        <ThemedText type="headline" accessibilityRole="header">
+          About this app
+        </ThemedText>
+        <ThemedText themeColor="textSecondary">{DISCLAIMER}</ThemedText>
+        <Button label="Crisis resources" variant="secondary" onPress={() => router.push('/crisis')} />
+        <ThemedText type="small" themeColor="textSecondary">
+          Version {Constants.expoConfig?.version ?? 'unknown'}
+        </ThemedText>
+      </ThemedView>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  card: { borderRadius: Radius.card, padding: Spacing.four, gap: Spacing.three },
+});

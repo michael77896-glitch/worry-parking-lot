@@ -1,57 +1,37 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?: 'default' | 'headline' | 'small' | 'smallBold' | 'caption' | 'title' | 'subtitle';
   themeColor?: ThemeColor;
+  /** For small chrome like the crisis pill: keep it from growing past 130% of the system size. */
+  capScale?: boolean;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
+/**
+ * System text styles at their default Dynamic Type sizes. Everything scales with the user's
+ * text-size setting. Nothing is below 13 pt and nothing is lighter than regular.
+ */
+export function ThemedText({ style, type = 'default', themeColor, capScale, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 
-  return <Text style={[{ color: theme[themeColor ?? 'text'] }, styles[type], style]} {...rest} />;
+  return (
+    <Text
+      maxFontSizeMultiplier={capScale ? 1.3 : undefined}
+      style={[{ color: theme[themeColor ?? 'text'] }, styles[type], style]}
+      {...rest}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-  small: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 500,
-  },
-  smallBold: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 700,
-  },
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: 500,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
-  },
-  subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 14,
-  },
-  linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
-  },
-  code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
-  },
+  default: { fontSize: 17, lineHeight: 25, fontWeight: 400 },
+  headline: { fontSize: 17, lineHeight: 23, fontWeight: 600 },
+  small: { fontSize: 15, lineHeight: 21, fontWeight: 400 },
+  smallBold: { fontSize: 15, lineHeight: 21, fontWeight: 600 },
+  caption: { fontSize: 13, lineHeight: 18, fontWeight: 500 },
+  title: { fontSize: 24, lineHeight: 30, fontWeight: 700, fontFamily: Fonts.rounded },
+  subtitle: { fontSize: 34, lineHeight: 41, fontWeight: 700, fontFamily: Fonts.rounded },
 });

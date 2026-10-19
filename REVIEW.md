@@ -6,7 +6,7 @@ Reviewed against [CLAUDE.md](CLAUDE.md) at commit `101e589`. Covers the source, 
 
 1. **The crisis screen depends on the database loading.** `SQLiteProvider` in `src/app/_layout.tsx` wraps the whole app, including `/crisis`. If the database fails to open or migrate (full disk, corrupt file), the app errors or shows a blank screen with no crisis numbers. This breaks CLAUDE.md rule 3. Fix: show a fallback screen with the numbers, or move the crisis route outside the provider.
 2. **The crisis numbers are unverified.** `lastVerified` in `src/constants/crisis.ts` is `null`. Confirm 988, 911, and Text HOME to 741741 against 988lifeline.org and crisistextline.org. The `sms:741741&body=HOME` link format and the `tel:` links are untested on a real phone.
-3. **VoiceOver reaches the crisis button last.** It is the last element in the root view. Render it first in the tree, keeping its `zIndex`, so VoiceOver reads it first.
+3. **VoiceOver reaches the crisis button last.** It is the last element in the root view. Render it first in the tree, keeping its `zIndex`, so VoiceOver reads it first. *Fixed in the night-lot redesign.*
 
 ## Needs a decision
 

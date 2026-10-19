@@ -9,7 +9,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "worryparkinglot",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
       "supportsTablet": false
@@ -32,9 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#151922"
         }
       ],
       "expo-font",

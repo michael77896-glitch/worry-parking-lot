@@ -1,63 +1,60 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
+ * The night lot. Dark asphalt, soft painted lines, one warm lamp color.
+ *
+ * The app is dark-only on purpose: the parking lot at night is its identity, and it is meant to be
+ * opened in the evening. There is no in-app appearance switch.
+ *
+ * Measured contrast (WCAG), on the background they are used on:
+ *   text 15.5:1 · textSecondary 9.5:1 · accentText on accent 10.4:1 · accent on background 10.6:1
+ *   crisisText on crisis 9.0:1 · ticketText on ticket 12.3:1 · ticketTextSecondary on ticket 5.9:1
+ *   paint lines 3.9:1 (decorative only, never the sole carrier of meaning)
  */
-
-import '@/global.css';
-
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-    accent: '#2F6F62',
-    accentText: '#ffffff',
-    crisis: '#B3261E',
-    crisisText: '#ffffff',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-    accent: '#5BB5A2',
-    accentText: '#06130F',
-    crisis: '#F2B8B5',
-    crisisText: '#601410',
-  },
+export const Night = {
+  /** Dark asphalt. */
+  background: '#151922',
+  /** Raised surfaces: cards, rows, the painted-spot tiles. */
+  backgroundElement: '#1E2430',
+  backgroundSelected: '#2A3140',
+  border: '#2C3444',
+  text: '#EEF1F7',
+  textSecondary: '#B7BFCF',
+  /** Painted lines. Decorative. */
+  paint: '#6B7690',
+  /** Warm lamp light. Used for the primary action and "the gate is open", nowhere else. */
+  accent: '#F0C27B',
+  accentText: '#231A08',
+  /** Crisis help: a soft coral, steady and never animated. */
+  crisis: '#F2A7A0',
+  crisisText: '#2B1210',
+  /** The parking ticket: cream paper. */
+  ticket: '#ECE3CF',
+  ticketText: '#26231D',
+  ticketTextSecondary: '#5A5444',
+  gatePost: '#3A4254',
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = keyof typeof Night;
+export type Theme = Record<ThemeColor, string>;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+/** Used automatically when the iPhone's Increase Contrast setting is on. */
+export const NightHighContrast: Theme = {
+  ...Night,
+  textSecondary: '#DCE1EC',
+  paint: '#98A3BC',
+  border: '#4A5468',
+  ticketTextSecondary: '#3F3A2E',
+};
+
+/** Muted car colors, picked per worry. Decoration only; every state also has text. */
+export const CarColors = ['#7FA8D1', '#8DBE9E', '#A89AD6', '#D6AA7C', '#7DBDB5', '#CB93A0'] as const;
+
+export const Fonts = {
+  /** SF Pro Rounded: soft headings. */
+  rounded: Platform.select({ ios: 'ui-rounded', default: 'normal' }),
+  mono: Platform.select({ ios: 'ui-monospace', default: 'monospace' }),
+};
 
 export const Spacing = {
   half: 2,
@@ -69,5 +66,10 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+export const Radius = {
+  card: 20,
+  button: 26,
+  chip: 22,
+} as const;
+
 export const MaxContentWidth = 800;
