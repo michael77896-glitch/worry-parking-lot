@@ -17,13 +17,14 @@ const CAR_WIDTH = 0.74;
 const CAR_HEIGHT = 0.74;
 const CAR_TOP = 0.07;
 
-type SpotCarProps = { carId: string; spotWidth: number; lit?: boolean };
+type SpotCarProps = { carId: string; spotWidth: number; lit?: boolean; paintId?: string };
 
 /** A car sized to sit neatly inside a spot of the given width. Used by spots and the visit screen. */
-export function SpotCar({ carId, spotWidth, lit }: SpotCarProps) {
+export function SpotCar({ carId, spotWidth, lit, paintId }: SpotCarProps) {
   return (
     <Car
       carId={carId}
+      paintId={paintId}
       width={spotWidth * CAR_WIDTH}
       height={spotWidth * ASPECT * CAR_HEIGHT}
       lit={lit}
@@ -36,7 +37,7 @@ type Props = {
   number?: number;
   width: number;
   /** A car (by catalog id) sitting in the spot. It settles in gently when the spot first appears. */
-  car?: { id: string; lit?: boolean };
+  car?: { id: string; paint?: string; lit?: boolean };
   /** Replaces the default car, for screens that animate it themselves. */
   slot?: ReactNode;
   selected?: boolean;
@@ -87,7 +88,7 @@ export function ParkingSpot({
                 .delay(enterDelay)
                 .easing(Easing.out(Easing.cubic))
                 .reduceMotion(ReduceMotion.System)}>
-              <SpotCar carId={car!.id} spotWidth={width} lit={car!.lit} />
+              <SpotCar carId={car!.id} paintId={car!.paint} spotWidth={width} lit={car!.lit} />
             </Animated.View>
           )}
         </View>

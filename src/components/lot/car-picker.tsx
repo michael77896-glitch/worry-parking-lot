@@ -3,14 +3,18 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Car } from '@/components/lot/car';
 import { ThemedText } from '@/components/themed-text';
-import { STYLE_GROUPS, unlockedCars } from '@/constants/car-catalog';
+import { getCar, STYLE_GROUPS } from '@/constants/car-catalog';
 import { Fonts, Radius, Spacing } from '@/constants/theme';
+import type { OwnedCar } from '@/data';
 import { useTheme } from '@/hooks/use-theme';
+import { ownedCarName, paintName } from '@/utils/garage';
 
 type Props = {
-  /** The selected car's id. */
-  value: string;
-  onChange: (carId: string) => void;
+  /** The cars in the user's garage. Each copy is its own tile, in its own paint. */
+  cars: OwnedCar[];
+  /** The selected car's garage id. */
+  value: number;
+  onChange: (ownedCarId: number) => void;
   /** Called when "Surprise me" is tapped. The screen decides which car comes next. */
   onShuffle: () => void;
 };
@@ -19,10 +23,10 @@ const TILE_WIDTH = 96;
 const PICTURE_HEIGHT = 92;
 
 /**
- * A row of the cars you can park as (locked cars are left out), with "Surprise me" first.
- * It scrolls sideways, so it grows as more cars are added to the catalog.
+ * A row of the cars you own, with "Surprise me" first. It scrolls sideways, so it grows as the
+ * garage does.
  */
-export function CarPicker({ value, onChange, onShuffle }: Props) {
+export function CarPicker({ cars, value, onChange, onShuffle }: Props) {
   const theme = useTheme();
 
   return (
@@ -50,13 +54,14 @@ export function CarPicker({ value, onChange, onShuffle }: Props) {
         </ThemedText>
       </Pressable>
 
-      {unlockedCars().map((car) => {
+      {cars.map((car) => {
         const selected = car.id === value;
+        const name = ownedCarName(car, cars);
         return (
           <Pressable
             key={car.id}
             accessibilityRole="radio"
-            accessibilityLabel={`${car.name}, ${STYLE_GROUPS[car.style].spoken}`}
+            accessibilityLabel={`${name}, ${STYLE_GROUPS[getCar(car.carId).style].spoken}, ${paintName(car.paint)}`}
             accessibilityState={{ selected, checked: selected }}
             onPress={() => onChange(car.id)}
             style={({ pressed }) => [
@@ -68,10 +73,10 @@ export function CarPicker({ value, onChange, onShuffle }: Props) {
               pressed && styles.pressed,
             ]}>
             <View style={styles.picture}>
-              <Car carId={car.id} width={TILE_WIDTH * 0.62} height={PICTURE_HEIGHT} />
+              <Car carId={car.carId} paintId={car.paint} width={TILE_WIDTH * 0.62} height={PICTURE_HEIGHT} />
             </View>
             <ThemedText type="caption" capScale numberOfLines={1} style={styles.label}>
-              {car.name}
+              {name}
             </ThemedText>
             {selected && (
               <View style={styles.check} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

@@ -18,14 +18,21 @@ import { ParkingSpot, SpotCar } from '@/components/lot/parking-spot';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { BOX_LABEL } from '@/constants/rewards';
 import { Radius, Spacing } from '@/constants/theme';
 import {
+  currentWindow,
+  finishWindow,
   getSettings,
+  getTokenBalance,
+  isTestWindowActive,
   isWindowOpen,
+  listBoxes,
   listWorries,
   markReviewed,
   MAX_STEP_LENGTH,
   nextWindowOpen,
+  type Box,
   type OpenWorry,
   type ReviewDecision,
   type WindowSettings,
@@ -34,20 +41,37 @@ import { useTheme } from '@/hooks/use-theme';
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatWhen } from '@/utils/format';
 
+type Reviewing = {
+  kind: 'reviewing';
+  queue: OpenWorry[];
+  index: number;
+  released: number;
+  planned: number;
+  kept: number;
+  settings: WindowSettings;
+  /** When this window opened, to count it once as finished. */
+  windowOpensAt: Date;
+  isTest: boolean;
+  /** To work out what this visit earned. */
+  balanceBefore: number;
+  boxIdsBefore: number[];
+};
+
 type Phase =
   | { kind: 'loading' }
   | { kind: 'closed'; nextOpen: Date }
   | { kind: 'empty' }
+  | Reviewing
   | {
-      kind: 'reviewing';
-      queue: OpenWorry[];
-      index: number;
+      kind: 'done';
       released: number;
       planned: number;
       kept: number;
-      settings: WindowSettings;
-    }
-  | { kind: 'done'; released: number; planned: number; kept: number; windowClosed: boolean };
+      windowClosed: boolean;
+      /** Tokens and boxes this visit earned (none if nothing was decided). */
+      tokens: number;
+      boxes: Box[];
+    };
 
 type Choice = 'let_go' | 'small_step' | 'not_now';
 
@@ -55,7 +79,15 @@ const LEAVE_MS = 450;
 const SPOT_WIDTH = 132;
 
 /** The car being visited. "Let it go" drives it out of the lot; the other choices fade it back. */
-function VisitedCar({ carId, leaving }: { carId: string; leaving: 'drive' | 'fade' | null }) {
+function VisitedCar({
+  carId,
+  paintId,
+  leaving,
+}: {
+  carId: string;
+  paintId: string;
+  leaving: 'drive' | 'fade' | null;
+}) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -77,7 +109,7 @@ function VisitedCar({ carId, leaving }: { carId: string; leaving: 'drive' | 'fad
 
   return (
     <Animated.View style={style}>
-      <SpotCar carId={carId} spotWidth={SPOT_WIDTH} lit />
+      <SpotCar carId={carId} paintId={paintId} spotWidth={SPOT_WIDTH} lit />
     </Animated.View>
   );
 }
@@ -91,6 +123,9 @@ function VisitedCar({ carId, leaving }: { carId: string; leaving: 'drive' | 'fad
  *  - "Plan one small step": they type a short next step. Saved as reviewed, with the step and date.
  *  - "Not now": nothing is saved. The worry stays parked and locked until the next window.
  * Either saved choice still brings a "Did this actually happen?" check-in a week after parking.
+ *
+ * Finishing the visit (deciding at least one car) counts the window as finished: +20 tokens and a
+ * Glovebox, once per window.
  */
 export default function ReviewScreen() {
   const db = useSQLiteContext();
@@ -108,8 +143,9 @@ export default function ReviewScreen() {
     (async () => {
       const now = new Date();
       const settings = await getSettings(db);
+      const window = currentWindow(now, settings);
       let next: Phase;
-      if (!isWindowOpen(now, settings)) {
+      if (!window) {
         next = { kind: 'closed', nextOpen: nextWindowOpen(now, settings) };
       } else {
         const worries = await listWorries(db, settings, now);
@@ -119,7 +155,19 @@ export default function ReviewScreen() {
         next =
           queue.length === 0
             ? { kind: 'empty' }
-            : { kind: 'reviewing', queue, index: 0, released: 0, planned: 0, kept: 0, settings };
+            : {
+                kind: 'reviewing',
+                queue,
+                index: 0,
+                released: 0,
+                planned: 0,
+                kept: 0,
+                settings,
+                windowOpensAt: window.opensAt,
+                isTest: isTestWindowActive(now),
+                balanceBefore: await getTokenBalance(db),
+                boxIdsBefore: (await listBoxes(db)).map((b) => b.id),
+              };
       }
       if (active) setPhase(next);
     })();
@@ -127,6 +175,20 @@ export default function ReviewScreen() {
       active = false;
     };
   }, [db]);
+
+  /** Ends the visit. If anything was decided, the window counts as finished. */
+  async function end(visit: Reviewing, counts: { released: number; planned: number; kept: number }, windowClosed: boolean) {
+    let tokens = 0;
+    let boxes: Box[] = [];
+    if (counts.released + counts.planned > 0) {
+      void syncFollowUpReminders(db);
+      await finishWindow(db, visit.windowOpensAt, new Date(), visit.isTest);
+      const before = new Set(visit.boxIdsBefore);
+      boxes = (await listBoxes(db)).filter((b) => !before.has(b.id) && !b.openedAt);
+      tokens = (await getTokenBalance(db)) - visit.balanceBefore;
+    }
+    setPhase({ kind: 'done', ...counts, windowClosed, tokens, boxes });
+  }
 
   async function decide(choice: Choice) {
     if (phase.kind !== 'reviewing' || busy) return;
@@ -144,14 +206,7 @@ export default function ReviewScreen() {
         const ok = await markReviewed(db, queue[index].id, settings, new Date(), decision);
         if (!ok) {
           // The gate closed while this worry was on screen: it stays parked.
-          setPhase({
-            kind: 'done',
-            released,
-            planned,
-            kept: kept + 1 + remainingAfter,
-            windowClosed: true,
-          });
-          if (released + planned > 0) void syncFollowUpReminders(db);
+          await end(phase, { released, planned, kept: kept + 1 + remainingAfter }, true);
           return;
         }
         if (choice === 'let_go') released += 1;
@@ -166,19 +221,11 @@ export default function ReviewScreen() {
       setStep('');
 
       if (remainingAfter === 0) {
-        setPhase({ kind: 'done', released, planned, kept, windowClosed: false });
-        if (released + planned > 0) void syncFollowUpReminders(db);
+        await end(phase, { released, planned, kept }, false);
       } else if (!isWindowOpen(new Date(), settings)) {
-        setPhase({
-          kind: 'done',
-          released,
-          planned,
-          kept: kept + remainingAfter,
-          windowClosed: true,
-        });
-        if (released + planned > 0) void syncFollowUpReminders(db);
+        await end(phase, { released, planned, kept: kept + remainingAfter }, true);
       } else {
-        setPhase({ kind: 'reviewing', queue, index: index + 1, released, planned, kept, settings });
+        setPhase({ ...phase, index: index + 1, released, planned, kept });
       }
     } catch {
       setLeaving(null);
@@ -240,6 +287,7 @@ export default function ReviewScreen() {
                 <VisitedCar
                   key={phase.queue[phase.index].id}
                   carId={phase.queue[phase.index].car}
+                  paintId={phase.queue[phase.index].paint}
                   leaving={leaving}
                 />
               }
@@ -329,7 +377,33 @@ export default function ReviewScreen() {
               : "That's everyone for today."}
           </ThemedText>
           {summary.length > 0 && <ThemedText themeColor="textSecondary">{summary}</ThemedText>}
-          <Button label="Done" onPress={() => router.back()} />
+
+          {(phase.tokens > 0 || phase.boxes.length > 0) && (
+            <ThemedView type="backgroundElement" style={styles.rewardCard} accessibilityLiveRegion="polite">
+              <ThemedText type="headline">Window finished</ThemedText>
+              {phase.tokens > 0 && <ThemedText themeColor="textSecondary">+{phase.tokens} tokens</ThemedText>}
+              {phase.boxes.map((box) => (
+                <ThemedText key={box.id} themeColor="textSecondary">
+                  A {BOX_LABEL[box.type]} is waiting in your Garage.
+                </ThemedText>
+              ))}
+            </ThemedView>
+          )}
+
+          {phase.boxes.length > 0 && (
+            <Button
+              label={phase.boxes.length === 1 ? `Open the ${BOX_LABEL[phase.boxes[0].type]}` : 'Open your boxes'}
+              onPress={() =>
+                router.replace({ pathname: '/open-box', params: { id: String(phase.boxes[0].id) } })
+              }
+              accessibilityHint="Opens the box you just earned. It is free."
+            />
+          )}
+          <Button
+            label="Done"
+            variant={phase.boxes.length > 0 ? 'secondary' : 'primary'}
+            onPress={() => router.back()}
+          />
         </>
       )}
     </Screen>
@@ -340,6 +414,7 @@ const styles = StyleSheet.create({
   stretch: { alignSelf: 'stretch' },
   spot: { alignItems: 'center' },
   card: { borderRadius: Radius.card, padding: Spacing.four },
+  rewardCard: { borderRadius: Radius.card, padding: Spacing.four, gap: Spacing.two },
   worryText: { fontSize: 20, lineHeight: 30 },
   input: {
     minHeight: 96,

@@ -14,7 +14,18 @@ These override convenience. If a task conflicts with one, stop and ask.
 4. **Worries are locked until the worry window.** A parked worry cannot be viewed or edited before the user's daily window opens. The lock is the core mechanic, so enforce it in the data layer (selectors/queries), not only by hiding UI. Decide edge cases (time zone change, window edited mid-day) in one place and document them in code.
 5. **Respect the user's state.** Copy is gentle and non-judgmental. Never shame a missed review or a worry that came true. The "came true" count is a neutral record, not a score to optimize.
 
+6. **Rewards stay calm, free, and private.** Tokens, boxes, cars, paints, and parts are stored only on the phone. Boxes can never be bought with real money: no purchase APIs, no ads for boxes, no "buy tokens", ever (a test fails if a payment library appears). Nothing resets or is taken away, so no streaks that break; no countdowns, limited-time offers, or scarcity. Odds are always shown on the odds screen and come from the same table the game rolls from (`src/constants/rewards.ts`). Rewards never depend on *what* the user answered: every "Did this actually happen?" answer earns the same.
+
 ## Product rules
+
+- **Rewards** (rules live in `src/constants/rewards.ts`, logic in `src/data/rewards.ts` and `src/data/loot.ts`, both tested without a phone):
+  - Tokens: +5 for parking a worry (first 3 per day), +20 for finishing a worry window (a visit where at least one car was let go or given a small step; once per window), +10 per check-in answer.
+  - Boxes: a Glovebox per finished window; a Toolbox when the 5th window of a Monday-to-Sunday week is finished; a Golden Crate for the 10th, 25th, and 50th worry let go. A Glovebox has a 2% and a Toolbox a 5% chance of giving a Golden Crate instead. Golden Crates are always Epic or better. Every 10th box is guaranteed Epic or better.
+  - Rarities Common / Rare / Epic / Legendary (gray, blue, purple, gold; always shown with their name). The seven starters are Common. Rare, Epic, and Legendary cars are locked placeholders in `src/constants/car-data.ts`; until a car's art exists, a roll that lands on a car of a rarity with none gives a mod part of that rarity instead. Say so on the odds screen (it does).
+  - A duplicate car waits for the user to choose Keep (a separate copy with its own paint and parts) or Trade (for a Glovebox).
+  - Mod shop: Gloss paint (10 colors) from the start; Matte, Metallic, Pearlescent, Chrome after 5, 15, 30, 50 finished windows; Color-shift only from Golden Crates (then free on any car). Parts have five slots (rims, spoiler, underglow, plate, stickers); their pictures are placeholders. Paint is drawn by recoloring the car picture with an SVG color matrix (`paintMatrix`), so check it on a device.
+  - Each worry stores `ownedCarId`, so repainting a car updates the worries already parked in it.
+  - The hidden dev menu (long-press the gate) can add tokens, boxes, and finished windows. It is development-only.
 
 - Visiting a worry (the "Visiting hours" screen): the user picks **Let it go** (car drives out) or **Plan one small step** (they type up to 140 characters), or **Not now** (nothing saved, the car stays parked and locked). The first two save the choice, the step, and the date (`reviewedAt`) via `markReviewed`; the "Did this actually happen?" check-in still comes 7 days after parking and shows the step.
 - The daily reminder reads "The gate is open. Time to visit your parked worries." Tapping it opens `/review`.

@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
@@ -10,12 +10,14 @@ import { ParkingSpot } from '@/components/lot/parking-spot';
 import { ParkingTicket } from '@/components/lot/ticket';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { TokenChip } from '@/components/token-chip';
 import { Spacing } from '@/constants/theme';
 import {
   countDueFollowUps,
   currentWindow,
   deleteWorry,
   getSettings,
+  getTokenBalance,
   isTestWindowActive,
   listParked,
   nextWindowOpen,
@@ -28,7 +30,7 @@ import { formatDateTime, formatTime, formatWhen } from '@/utils/format';
 
 // Hidden test tools exist only in development builds. The `require` sits behind `__DEV__` so
 // release builds don't bundle the module at all.
-const showTestTools: ((refresh: () => void) => void) | undefined = __DEV__
+const showTestTools: ((db: SQLiteDatabase, refresh: () => void) => void) | undefined = __DEV__
   ? // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('@/dev/test-tools').showTestTools
   : undefined;
@@ -43,6 +45,7 @@ type Snapshot = {
   /** Oldest first, so the first car parked is in space 1. */
   parked: ParkedWorry[];
   dueFollowUps: number;
+  balance: number;
 };
 
 export default function LotScreen() {
@@ -56,7 +59,8 @@ export default function LotScreen() {
     const settings = await getSettings(db);
     const parked = (await listParked(db)).reverse();
     const dueFollowUps = await countDueFollowUps(db, now);
-    setSnapshot({ now, settings, parked, dueFollowUps });
+    const balance = await getTokenBalance(db);
+    setSnapshot({ now, settings, parked, dueFollowUps, balance });
   }, [db]);
 
   useFocusEffect(
@@ -97,7 +101,7 @@ export default function LotScreen() {
     );
   }
 
-  const { now, settings, parked, dueFollowUps } = snapshot;
+  const { now, settings, parked, dueFollowUps, balance } = snapshot;
   const window = currentWindow(now, settings);
   const isOpen = window !== null;
   const opensFor = (w: ParkedWorry) => readableAt(new Date(w.unlocksAt), now, settings);
@@ -112,7 +116,16 @@ export default function LotScreen() {
 
   return (
     <Screen>
-      <ThemedText type="subtitle">The Lot</ThemedText>
+      <View style={styles.titleRow}>
+        <ThemedText type="subtitle">The Lot</ThemedText>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${balance} tokens`}
+          accessibilityHint="Opens your Garage"
+          onPress={() => router.navigate('/garage')}>
+          <TokenChip balance={balance} />
+        </Pressable>
+      </View>
 
       <View
         onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
@@ -122,7 +135,7 @@ export default function LotScreen() {
             <Pressable
               accessible={false}
               delayLongPress={1500}
-              onLongPress={() => showTestTools(() => void refresh())}>
+              onLongPress={() => showTestTools(db, () => void refresh())}>
               <Gate open={isOpen} width={gridWidth} />
             </Pressable>
           ) : (
@@ -189,7 +202,7 @@ export default function LotScreen() {
                     key={`car-${worry.id}`}
                     number={index + 1}
                     width={spotWidth}
-                    car={{ id: worry.car, lit: ready }}
+                    car={{ id: worry.car, paint: worry.paint, lit: ready }}
                     enterDelay={index * 90}
                     selected={worry.id === selected?.id}
                     onPress={() => setSelectedId(worry.id)}
@@ -220,6 +233,7 @@ export default function LotScreen() {
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.three },
   gateWrap: { alignSelf: 'stretch' },
   grid: { gap: GAP },
   row: { flexDirection: 'row', gap: GAP },

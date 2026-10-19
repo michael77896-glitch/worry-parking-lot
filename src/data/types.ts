@@ -11,6 +11,8 @@ export type ReviewDecision = { choice: 'let_go' } | { choice: 'small_step'; step
 type WorryBase = {
   id: number;
   car: CarId;
+  /** Paint on the owned car this worry is parked as ("stock" if none). */
+  paint: string;
   /** UTC ISO timestamps. */
   parkedAt: string;
   unlocksAt: string;
@@ -73,6 +75,7 @@ export type PendingFollowUp = {
 export type ParkedWorry = {
   id: number;
   car: CarId;
+  paint: string;
   parkedAt: string;
   unlocksAt: string;
 };

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { DEFAULT_CAR_ID, isCarId, type CarId } from './cars';
+import { awardOutcomeTokens, awardParkTokens, clearRewards, ensureStarterCars, noteLetGo } from './rewards';
 import type {
   FollowUp,
   HistoryItem,
@@ -39,9 +40,13 @@ function unlockCutoff(now: Date): string {
   return isTestWindowActive(now) ? FAR_FUTURE : now.toISOString();
 }
 
+/** The paint of the owned car a worry is parked as, or the original paint if there isn't one. */
+const PAINT_OF_WORRY = `COALESCE((SELECT paint FROM owned_cars WHERE id = worries.ownedCarId), 'stock')`;
+
 type Row = {
   id: number;
   car: CarId;
+  paint: string;
   parkedAt: string;
   unlocksAt: string;
   followUpDueAt: string;
@@ -51,13 +56,18 @@ type Row = {
   text: string | null;
 };
 
-/** Parks a worry as the given car (an id from the catalog). Returns the worry's id. */
+/**
+ * Parks a worry as the given car (an id from the catalog), and as one of the user's own cars if
+ * `ownedCarId` is given, so its paint shows. Earns 5 tokens, for the first 3 worries each day.
+ * Returns the worry's id.
+ */
 export async function parkWorry(
   db: SQLiteDatabase,
   text: string,
   settings: WindowSettings,
   now: Date = new Date(),
   car: CarId = DEFAULT_CAR_ID,
+  ownedCarId: number | null = null,
 ): Promise<number> {
   const trimmed = text.trim();
   if (trimmed.length === 0) throw new RangeError('A worry cannot be empty');
@@ -67,16 +77,18 @@ export async function parkWorry(
   if (!isCarId(car)) throw new RangeError('Not a valid car id');
   const followUpDueAt = new Date(now.getTime() + FOLLOW_UP_DAYS * 24 * 60 * 60 * 1000);
   const result = await db.runAsync(
-    `INSERT INTO worries (text, car, parkedAt, unlocksAt, followUpDueAt)
-     VALUES ($text, $car, $parkedAt, $unlocksAt, $followUpDueAt)`,
+    `INSERT INTO worries (text, car, ownedCarId, parkedAt, unlocksAt, followUpDueAt)
+     VALUES ($text, $car, $ownedCarId, $parkedAt, $unlocksAt, $followUpDueAt)`,
     {
       $text: trimmed,
       $car: car,
+      $ownedCarId: ownedCarId,
       $parkedAt: now.toISOString(),
       $unlocksAt: nextWindowOpen(now, settings).toISOString(),
       $followUpDueAt: followUpDueAt.toISOString(),
     },
   );
+  await awardParkTokens(db, result.lastInsertRowId, now);
   return result.lastInsertRowId;
 }
 
@@ -87,7 +99,7 @@ export async function listWorries(
   now: Date = new Date(),
 ): Promise<Worry[]> {
   const rows = await db.getAllAsync<Row>(
-    `SELECT id, car, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt,
+    `SELECT id, car, ${PAINT_OF_WORRY} AS paint, parkedAt, unlocksAt, followUpDueAt, reviewedAt, outcome, outcomeAt,
             CASE WHEN ${READABLE} THEN text ELSE NULL END AS text
      FROM worries
      ORDER BY parkedAt DESC`,
@@ -101,7 +113,8 @@ export async function listWorries(
 /** Worries still waiting for review, newest first. Never selects the text column. */
 export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
   return db.getAllAsync<ParkedWorry>(
-    `SELECT id, car, parkedAt, unlocksAt FROM worries WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
+    `SELECT id, car, ${PAINT_OF_WORRY} AS paint, parkedAt, unlocksAt FROM worries
+     WHERE reviewedAt IS NULL ORDER BY parkedAt DESC`,
   );
 }
 
@@ -193,10 +206,16 @@ export async function markReviewed(
       $cutoff: unlockCutoff(now),
     },
   );
-  return result.changes > 0;
+  if (result.changes === 0) return false;
+  // Letting go counts toward the Golden Crate milestones (10th, 25th, 50th).
+  if (decision.choice === 'let_go') await noteLetGo(db, now);
+  return true;
 }
 
-/** Records "did this happen?". Only for reviewed worries whose follow-up is due and unanswered. */
+/**
+ * Records "did this happen?". Only for reviewed worries whose follow-up is due and unanswered.
+ * Earns 10 tokens for answering, whichever answer it is.
+ */
 export async function recordOutcome(
   db: SQLiteDatabase,
   id: number,
@@ -208,7 +227,9 @@ export async function recordOutcome(
      WHERE id = $id AND reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt <= $now`,
     { $id: id, $outcome: outcome, $now: now.toISOString() },
   );
-  return result.changes > 0;
+  if (result.changes === 0) return false;
+  await awardOutcomeTokens(db, id, now);
+  return true;
 }
 
 export async function deleteWorry(db: SQLiteDatabase, id: number): Promise<void> {
@@ -216,12 +237,15 @@ export async function deleteWorry(db: SQLiteDatabase, id: number): Promise<void>
 }
 
 /**
- * Wipes everything the app has stored: worries and settings. Then shrinks the database file
+ * Wipes everything the app has stored: worries, settings, tokens, boxes, and the garage. The
+ * starter cars come back, so a fresh start has something to park. Then shrinks the database file
  * so no old content is left in free pages. (VACUUM can't run inside a transaction.)
  */
 export async function deleteAllData(db: SQLiteDatabase): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.execAsync('DELETE FROM worries; DELETE FROM settings;');
+    await clearRewards(db);
+    await ensureStarterCars(db);
   });
   await db.execAsync('VACUUM');
 }

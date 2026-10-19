@@ -48,6 +48,9 @@ function RootStack() {
         <Stack.Screen name="review" />
         <Stack.Screen name="followup" />
         <Stack.Screen name="window" />
+        <Stack.Screen name="open-box" />
+        <Stack.Screen name="shop" />
+        <Stack.Screen name="box-odds" />
       </Stack.Protected>
       <Stack.Screen
         name="crisis"

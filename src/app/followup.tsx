@@ -9,6 +9,7 @@ import { Car } from '@/components/lot/car';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TOKENS } from '@/constants/rewards';
 import { Radius, Spacing } from '@/constants/theme';
 import { listDueFollowUps, recordOutcome, type FollowUp, type Outcome } from '@/data';
 import { syncFollowUpReminders } from '@/notifications/followups';
@@ -127,6 +128,11 @@ export default function FollowUpScreen() {
           <ThemedText>
             {phase.answered === 0 ? 'No answers recorded this time.' : 'Thanks, that’s recorded.'}
           </ThemedText>
+          {phase.answered > 0 && (
+            <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
+              +{phase.answered * TOKENS.outcome} tokens
+            </ThemedText>
+          )}
           {phase.skipped > 0 && (
             <ThemedText themeColor="textSecondary">{phase.skipped} left for another day.</ThemedText>
           )}

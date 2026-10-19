@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 /** Bump this and add a step below when the schema changes. */
-const LATEST_VERSION = 4;
+const LATEST_VERSION = 5;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
   // Deleted rows are overwritten with zeros, not left behind in the database file.
@@ -82,6 +82,73 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
         FROM worries;
         DROP TABLE worries;
         ALTER TABLE worries_new RENAME TO worries;
+      `);
+    }
+    if (current < 5) {
+      // The reward system. Everything is stored on the phone. The ledger only ever grows (a spend
+      // is a negative row), boxes have a unique `source` so a reward can't be given twice, and the
+      // seven starter cars are put in the garage (their ids are fixed here, as this step is history).
+      await db.execAsync(`
+        CREATE TABLE token_ledger (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          kind TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          day TEXT NOT NULL,
+          refId TEXT,
+          createdAt TEXT NOT NULL
+        );
+        CREATE TABLE finished_windows (
+          dayKey TEXT PRIMARY KEY NOT NULL,
+          weekKey TEXT NOT NULL,
+          finishedAt TEXT NOT NULL
+        );
+        CREATE TABLE boxes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          type TEXT NOT NULL CHECK (type IN ('glovebox', 'toolbox', 'golden')),
+          source TEXT NOT NULL UNIQUE,
+          earnedAt TEXT NOT NULL,
+          openedAt TEXT,
+          resolvedAt TEXT,
+          result TEXT
+        );
+        CREATE TABLE owned_cars (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          carId TEXT NOT NULL,
+          paint TEXT NOT NULL DEFAULT 'stock',
+          acquiredAt TEXT NOT NULL,
+          source TEXT NOT NULL
+        );
+        CREATE TABLE car_paints (
+          ownedCarId INTEGER NOT NULL,
+          paintId TEXT NOT NULL,
+          PRIMARY KEY (ownedCarId, paintId)
+        );
+        CREATE TABLE unlocked_paints (
+          paintId TEXT PRIMARY KEY NOT NULL,
+          source TEXT NOT NULL,
+          unlockedAt TEXT NOT NULL
+        );
+        CREATE TABLE owned_parts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          partId TEXT NOT NULL,
+          acquiredAt TEXT NOT NULL,
+          source TEXT NOT NULL,
+          installedOn INTEGER
+        );
+        CREATE TABLE reward_state (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL
+        );
+        ALTER TABLE worries ADD COLUMN ownedCarId INTEGER;
+        INSERT INTO owned_cars (carId, acquiredAt, source) VALUES
+          ('coupe', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('kei-truck', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('city-car', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('rear-engine', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('wagon', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('muscle', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter'),
+          ('4x4', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'starter');
+        UPDATE worries SET ownedCarId = (SELECT id FROM owned_cars WHERE owned_cars.carId = worries.car ORDER BY id LIMIT 1);
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${LATEST_VERSION}`);
