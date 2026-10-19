@@ -39,14 +39,21 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: () => voi
   const status = item.outcome
     ? OUTCOME_LABEL[item.outcome]
     : `Look back on ${formatDateTime(new Date(item.followUpDueAt))}`;
+  const visited = `${item.reviewChoice === 'small_step' ? 'Planned a small step' : 'Let it go'} · ${formatDateTime(new Date(item.reviewedAt))}`;
   return (
     <ThemedView type="backgroundElement" style={styles.historyRow}>
       <View style={styles.historyBody}>
         <Car color={CarColors[item.id % CarColors.length]} width={30} />
         <View style={styles.historyText}>
           <ThemedText numberOfLines={4}>{item.text}</ThemedText>
+          {item.smallStep && (
+            <ThemedText type="small">Small step: {item.smallStep}</ThemedText>
+          )}
           <ThemedText type="small" themeColor="textSecondary">
             Parked {formatDateTime(new Date(item.parkedAt))}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {visited}
           </ThemedText>
           <ThemedText type="smallBold">{status}</ThemedText>
         </View>

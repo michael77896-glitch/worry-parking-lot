@@ -17,10 +17,18 @@ type Props = {
   onPress: () => void;
   variant?: Variant;
   accessibilityHint?: string;
+  /** Dimmed and not tappable, e.g. a Save button while a required field is empty. */
+  disabled?: boolean;
 };
 
 /** Capsule button, at least 52 pt tall. One primary button per screen; the rest are secondary. */
-export function Button({ label, onPress, variant = 'primary', accessibilityHint }: Props) {
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  accessibilityHint,
+  disabled = false,
+}: Props) {
   const theme = useTheme();
   const colors = VARIANTS[variant];
 
@@ -29,11 +37,14 @@ export function Button({ label, onPress, variant = 'primary', accessibilityHint 
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: theme[colors.background], borderColor: theme[colors.border] },
         pressed && styles.pressed,
+        disabled && styles.disabled,
       ]}>
       <ThemedText type="headline" style={styles.label} themeColor={colors.text}>
         {label}
@@ -53,5 +64,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  disabled: { opacity: 0.45 },
   label: { textAlign: 'center' },
 });

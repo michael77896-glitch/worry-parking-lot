@@ -34,8 +34,34 @@ function windowOnDay(from: Date, dayOffset: number, s: WindowSettings): WindowSp
   return { opensAt, closesAt: new Date(opensAt.getTime() + s.lengthMinutes * MINUTE_MS) };
 }
 
+// --- Test window (development builds only) -------------------------------------------------
+// Lets a developer open the gate by hand without waiting for the real window. It is compiled
+// out of release builds: outside development, `setTestWindow` does nothing, so it can never
+// be used to read a locked worry early.
+
+const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+
+let testWindow: WindowSpan | null = null;
+
+/** Opens the gate for `minutes` starting now, or closes the test window when `minutes` is null. */
+export function setTestWindow(minutes: number | null, now: Date = new Date()): void {
+  if (!IS_DEV) return;
+  testWindow = minutes === null ? null : { opensAt: now, closesAt: new Date(now.getTime() + minutes * MINUTE_MS) };
+}
+
+function activeTestWindow(now: Date): WindowSpan | null {
+  return testWindow && testWindow.opensAt <= now && now < testWindow.closesAt ? testWindow : null;
+}
+
+/** True while a hand-opened test window is in effect. */
+export function isTestWindowActive(now: Date = new Date()): boolean {
+  return activeTestWindow(now) !== null;
+}
+
 /** The window that is open at `now`, or null. Checks yesterday's too, for windows past midnight. */
 export function currentWindow(now: Date, s: WindowSettings): WindowSpan | null {
+  const test = activeTestWindow(now);
+  if (test) return test;
   for (const offset of [-1, 0]) {
     const span = windowOnDay(now, offset, s);
     if (span.opensAt <= now && now < span.closesAt) return span;
@@ -62,6 +88,7 @@ export function nextWindowOpen(after: Date, s: WindowSettings): Date {
  * unlock time has passed, otherwise the next window opening at or after its unlock time.
  */
 export function readableAt(unlocksAt: Date, now: Date, s: WindowSettings): Date {
+  if (activeTestWindow(now)) return now;
   if (unlocksAt <= now && isWindowOpen(now, s)) return now;
   const from = unlocksAt > now ? unlocksAt : now;
   return nextWindowOpen(new Date(from.getTime() - 1), s);

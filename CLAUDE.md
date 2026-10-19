@@ -16,6 +16,9 @@ These override convenience. If a task conflicts with one, stop and ask.
 
 ## Product rules
 
+- Visiting a worry (the "Visiting hours" screen): the user picks **Let it go** (car drives out) or **Plan one small step** (they type up to 140 characters), or **Not now** (nothing saved, the car stays parked and locked). The first two save the choice, the step, and the date (`reviewedAt`) via `markReviewed`; the "Did this actually happen?" check-in still comes 7 days after parking and shows the step.
+- The daily reminder reads "The gate is open. Time to visit your parked worries." Tapping it opens `/review`.
+- **Test tools are development-only.** Long-pressing the gate on the Lot tab (1.5 s) opens a hidden menu to open the gate by hand for 15 minutes and to send the reminder in 5 seconds. They exist only when `__DEV__` is true; `setTestWindow` does nothing in release builds, so the lock rule can't be bypassed by real users. Never ship a visible "open now" control.
 - Daily worry window: user picks a time and length (default 15 minutes). Notifications are **local only** (`expo-notifications`); no push server.
 - Follow-up: 7 days after a worry is parked, ask "Did this actually happen?" Outcomes are recorded per worry. The stats screen shows how many came true out of how many were followed up, never a diagnosis or interpretation.
 - Deleting data must be real: the user can delete a single worry and wipe everything from Settings.

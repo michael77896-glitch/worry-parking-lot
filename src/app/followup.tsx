@@ -98,6 +98,14 @@ export default function FollowUpScreen() {
               </ThemedText>
             </View>
             <ThemedText style={styles.worryText}>{phase.queue[phase.index].text}</ThemedText>
+            {phase.queue[phase.index].smallStep && (
+              <View style={styles.step}>
+                <ThemedText type="caption" themeColor="textSecondary">
+                  YOUR SMALL STEP
+                </ThemedText>
+                <ThemedText>{phase.queue[phase.index].smallStep}</ThemedText>
+              </View>
+            )}
           </ThemedView>
           <ThemedText type="headline" accessibilityRole="header">
             Did this actually happen?
@@ -134,4 +142,5 @@ const styles = StyleSheet.create({
   carRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   parkedOn: { flex: 1 },
   worryText: { fontSize: 20, lineHeight: 30 },
+  step: { gap: Spacing.half },
 });

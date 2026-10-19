@@ -1,5 +1,11 @@
 export type Outcome = 'happened' | 'partly' | 'did_not_happen';
 
+/** What the user chose when they visited a worry. */
+export type ReviewChoice = 'let_go' | 'small_step';
+
+/** The user's decision for a worry. A small step carries the short next step they typed. */
+export type ReviewDecision = { choice: 'let_go' } | { choice: 'small_step'; step: string };
+
 type WorryBase = {
   id: number;
   /** UTC ISO timestamps. */
@@ -26,6 +32,8 @@ export type FollowUp = {
   id: number;
   text: string;
   parkedAt: string;
+  reviewChoice: ReviewChoice | null;
+  smallStep: string | null;
 };
 
 /** A reviewed worry for the record screen. Safe to include text: the user already read it. */
@@ -33,6 +41,10 @@ export type HistoryItem = {
   id: number;
   text: string;
   parkedAt: string;
+  /** The date the user visited it and made their choice. */
+  reviewedAt: string;
+  reviewChoice: ReviewChoice | null;
+  smallStep: string | null;
   followUpDueAt: string;
   outcome: Outcome | null;
 };

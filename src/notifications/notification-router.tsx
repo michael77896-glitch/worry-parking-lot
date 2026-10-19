@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
 import { FOLLOW_UP_SCREEN } from './followups';
+import { REVIEW_SCREEN } from './reminders';
 
 /**
  * Opens the check-in screen when the user taps a check-in notification, including when
@@ -20,10 +21,10 @@ export function NotificationRouter() {
     if (handled.current === key) return;
     handled.current = key;
 
-    if (response.notification.request.content.data?.screen === FOLLOW_UP_SCREEN) {
-      // Let the navigator finish mounting first when the app was launched by the tap.
-      setTimeout(() => router.push('/followup'), 0);
-    }
+    const screen = response.notification.request.content.data?.screen;
+    // Let the navigator finish mounting first when the app was launched by the tap.
+    if (screen === FOLLOW_UP_SCREEN) setTimeout(() => router.push('/followup'), 0);
+    if (screen === REVIEW_SCREEN) setTimeout(() => router.push('/review'), 0);
   }, [response]);
 
   return null;

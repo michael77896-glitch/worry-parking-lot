@@ -7,6 +7,9 @@ import * as Notifications from 'expo-notifications';
 
 const REMINDER_ID = 'worry-window-daily';
 
+/** Tapping the daily reminder opens the visiting screen. */
+export const REVIEW_SCREEN = 'review';
+
 export type ReminderPermission = 'granted' | 'undetermined' | 'denied';
 
 /** Call once at startup so reminders also show as a banner while the app is open. */
@@ -39,8 +42,9 @@ export async function scheduleWindowReminder(startMinutes: number): Promise<void
   await Notifications.scheduleNotificationAsync({
     identifier: REMINDER_ID,
     content: {
-      title: 'Your worry window is open',
-      body: 'Your parked worries are ready whenever you want to look at them.',
+      title: 'The gate is open',
+      body: 'Time to visit your parked worries.',
+      data: { screen: REVIEW_SCREEN },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -48,6 +52,25 @@ export async function scheduleWindowReminder(startMinutes: number): Promise<void
       minute: startMinutes % 60,
     },
   });
+}
+
+/**
+ * Development helper: sends the same notification as the daily reminder in a few seconds, so it
+ * can be seen without waiting for the worry window. Returns false if notifications aren't allowed.
+ */
+export async function sendTestReminder(seconds = 5): Promise<boolean> {
+  let permission = await getReminderPermission();
+  if (permission === 'undetermined' && (await requestReminderPermission())) permission = 'granted';
+  if (permission !== 'granted') return false;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'The gate is open',
+      body: 'Time to visit your parked worries.',
+      data: { screen: REVIEW_SCREEN },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds },
+  });
+  return true;
 }
 
 export async function cancelWindowReminder(): Promise<void> {

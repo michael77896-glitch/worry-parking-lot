@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 /** Bump this and add a step below when the schema changes. */
-const LATEST_VERSION = 1;
+const LATEST_VERSION = 2;
 
 export async function migrate(db: SQLiteDatabase): Promise<void> {
   // Deleted rows are overwritten with zeros, not left behind in the database file.
@@ -29,6 +29,15 @@ export async function migrate(db: SQLiteDatabase): Promise<void> {
           key TEXT PRIMARY KEY NOT NULL,
           value TEXT NOT NULL
         );
+      `);
+    }
+    if (current < 2) {
+      // What the user chose when they visited the worry ("let it go" or "plan one small step"),
+      // and the small step they typed. The date of the visit is the existing reviewedAt.
+      await db.execAsync(`
+        ALTER TABLE worries ADD COLUMN reviewChoice TEXT CHECK (reviewChoice IN ('let_go', 'small_step'));
+        ALTER TABLE worries ADD COLUMN smallStep TEXT;
+        UPDATE worries SET reviewChoice = 'let_go' WHERE reviewedAt IS NOT NULL;
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${LATEST_VERSION}`);

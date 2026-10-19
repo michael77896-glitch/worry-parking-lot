@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { DeleteLink } from '@/components/delete-link';
@@ -16,6 +16,7 @@ import {
   currentWindow,
   deleteWorry,
   getSettings,
+  isTestWindowActive,
   listParked,
   nextWindowOpen,
   readableAt,
@@ -24,6 +25,13 @@ import {
 } from '@/data';
 import { syncFollowUpReminders } from '@/notifications/followups';
 import { formatDateTime, formatTime, formatWhen } from '@/utils/format';
+
+// Hidden test tools exist only in development builds. The `require` sits behind `__DEV__` so
+// release builds don't bundle the module at all.
+const showTestTools: ((refresh: () => void) => void) | undefined = __DEV__
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/dev/test-tools').showTestTools
+  : undefined;
 
 const COLUMNS = 3;
 const GAP = 12;
@@ -109,13 +117,28 @@ export default function LotScreen() {
       <View
         onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
         style={styles.gateWrap}>
-        {gridWidth > 0 && <Gate open={isOpen} width={gridWidth} />}
+        {gridWidth > 0 &&
+          (showTestTools ? (
+            <Pressable
+              accessible={false}
+              delayLongPress={1500}
+              onLongPress={() => showTestTools(() => void refresh())}>
+              <Gate open={isOpen} width={gridWidth} />
+            </Pressable>
+          ) : (
+            <Gate open={isOpen} width={gridWidth} />
+          ))}
       </View>
       <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
         {window
           ? `The gate is open until ${formatTime(window.closesAt)}.`
           : `The gate opens ${formatWhen(nextWindowOpen(now, settings))}.`}
       </ThemedText>
+      {isTestWindowActive(now) && (
+        <ThemedText type="caption" themeColor="textSecondary">
+          Test mode: the gate was opened by hand.
+        </ThemedText>
+      )}
 
       {readyCount > 0 && (
         <Button

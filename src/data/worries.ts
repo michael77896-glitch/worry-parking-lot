@@ -6,12 +6,14 @@ import type {
   Outcome,
   ParkedWorry,
   PendingFollowUp,
+  ReviewDecision,
   Stats,
   Worry,
 } from './types';
-import { isWindowOpen, nextWindowOpen, type WindowSettings } from './window';
+import { isTestWindowActive, isWindowOpen, nextWindowOpen, type WindowSettings } from './window';
 
 export const MAX_WORRY_LENGTH = 2000;
+export const MAX_STEP_LENGTH = 140;
 export const FOLLOW_UP_DAYS = 7;
 
 /**
@@ -23,8 +25,18 @@ export const FOLLOW_UP_DAYS = 7;
  * Parked during an open window? It still waits for the NEXT opening (see `unlocksAt`).
  * Missed a window? The worry relocks when the window closes and carries over to the next.
  * Changing the window or time zone is safe: only "window open now" uses current settings.
+ *
+ * In development builds only, a hand-opened test window (see `setTestWindow`) also lifts the
+ * unlock-time check, so a worry parked a moment ago can be visited. `unlockCutoff` is the one
+ * place that happens; release builds always use the real time.
  */
-const READABLE = `(reviewedAt IS NOT NULL OR ($open = 1 AND unlocksAt <= $now))`;
+const READABLE = `(reviewedAt IS NOT NULL OR ($open = 1 AND unlocksAt <= $cutoff))`;
+
+const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
+
+function unlockCutoff(now: Date): string {
+  return isTestWindowActive(now) ? FAR_FUTURE : now.toISOString();
+}
 
 type Row = {
   id: number;
@@ -73,7 +85,7 @@ export async function listWorries(
             CASE WHEN ${READABLE} THEN text ELSE NULL END AS text
      FROM worries
      ORDER BY parkedAt DESC`,
-    { $open: isWindowOpen(now, settings) ? 1 : 0, $now: now.toISOString() },
+    { $open: isWindowOpen(now, settings) ? 1 : 0, $cutoff: unlockCutoff(now) },
   );
   return rows.map((r) =>
     r.text === null ? { ...r, locked: true, text: null } : { ...r, locked: false, text: r.text },
@@ -93,7 +105,7 @@ export async function listParked(db: SQLiteDatabase): Promise<ParkedWorry[]> {
  */
 export async function listDueFollowUps(db: SQLiteDatabase, now: Date = new Date()): Promise<FollowUp[]> {
   return db.getAllAsync<FollowUp>(
-    `SELECT id, text, parkedAt FROM worries
+    `SELECT id, text, parkedAt, reviewChoice, smallStep FROM worries
      WHERE reviewedAt IS NOT NULL AND outcome IS NULL AND followUpDueAt <= $now
      ORDER BY followUpDueAt ASC`,
     { $now: now.toISOString() },
@@ -137,23 +149,43 @@ export async function getStats(db: SQLiteDatabase): Promise<Stats> {
 /** Worries the user has already reviewed, newest first. Unreviewed worries are never included. */
 export async function listReviewed(db: SQLiteDatabase): Promise<HistoryItem[]> {
   return db.getAllAsync<HistoryItem>(
-    `SELECT id, text, parkedAt, followUpDueAt, outcome FROM worries
+    `SELECT id, text, parkedAt, reviewedAt, reviewChoice, smallStep, followUpDueAt, outcome FROM worries
      WHERE reviewedAt IS NOT NULL
      ORDER BY parkedAt DESC`,
   );
 }
 
-/** Marks a worry reviewed. Returns false if it is still locked or already reviewed. */
+/**
+ * Saves the user's decision for a worry they are visiting: what they chose, the small step if
+ * they planned one, and the date (`reviewedAt`). Returns false if the worry is still locked or
+ * was already reviewed. The check-in still comes FOLLOW_UP_DAYS after the worry was parked.
+ */
 export async function markReviewed(
   db: SQLiteDatabase,
   id: number,
   settings: WindowSettings,
   now: Date = new Date(),
+  decision: ReviewDecision = { choice: 'let_go' },
 ): Promise<boolean> {
+  let step: string | null = null;
+  if (decision.choice === 'small_step') {
+    step = decision.step.trim();
+    if (step.length === 0) throw new RangeError('A small step cannot be empty');
+    if (step.length > MAX_STEP_LENGTH) {
+      throw new RangeError(`A small step can be at most ${MAX_STEP_LENGTH} characters`);
+    }
+  }
   const result = await db.runAsync(
-    `UPDATE worries SET reviewedAt = $now
-     WHERE id = $id AND reviewedAt IS NULL AND $open = 1 AND unlocksAt <= $now`,
-    { $id: id, $now: now.toISOString(), $open: isWindowOpen(now, settings) ? 1 : 0 },
+    `UPDATE worries SET reviewedAt = $now, reviewChoice = $choice, smallStep = $step
+     WHERE id = $id AND reviewedAt IS NULL AND $open = 1 AND unlocksAt <= $cutoff`,
+    {
+      $id: id,
+      $now: now.toISOString(),
+      $choice: decision.choice,
+      $step: step,
+      $open: isWindowOpen(now, settings) ? 1 : 0,
+      $cutoff: unlockCutoff(now),
+    },
   );
   return result.changes > 0;
 }
