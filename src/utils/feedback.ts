@@ -31,6 +31,17 @@ export function shakeHaptic(level: number): void {
   safe(() => Haptics.impactAsync(style));
 }
 
+/** One buzz while a box is charging. The caller makes them come faster and firmer as it fills. */
+export function buzz(strength: 'light' | 'medium' | 'heavy'): void {
+  const style =
+    strength === 'light'
+      ? Haptics.ImpactFeedbackStyle.Light
+      : strength === 'medium'
+        ? Haptics.ImpactFeedbackStyle.Medium
+        : Haptics.ImpactFeedbackStyle.Heavy;
+  safe(() => Haptics.impactAsync(style));
+}
+
 /** The box bursting open: one strong thump. */
 export function burstHaptic(): void {
   safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));

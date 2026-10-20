@@ -8,7 +8,9 @@ import Animated, {
   FadeIn,
   ReduceMotion,
   SlideInRight,
+  cancelAnimation,
   useAnimatedStyle,
+  useFrameCallback,
   useReducedMotion,
   useSharedValue,
   withSequence,
@@ -17,14 +19,18 @@ import Animated, {
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 import { BackLink } from '@/components/back-link';
+import { BoxStage, SceneryCanvas } from '@/components/box/box-stage';
+import { LightningLayer } from '@/components/box/lightning-layer';
+import { RevealFx } from '@/components/box/reveal-fx';
+import { Shimmer } from '@/components/box/shimmer';
+import { Turntable } from '@/components/box/turntable';
 import { Button } from '@/components/button';
 import { BoxArt } from '@/components/lot/box-art';
-import { ParticleBurst } from '@/components/lot/burst';
-import { Car } from '@/components/lot/car';
 import { PartTile } from '@/components/lot/part-tile';
-import { CaseReel, REEL_SPIN_MS } from '@/components/lot/reel';
+import { CaseReel, CARD_H, REEL_SPIN_MS } from '@/components/lot/reel';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { BOX_PHOTOS } from '@/constants/box-photos';
 import { getCar } from '@/constants/car-catalog';
 import { getPaint } from '@/constants/paints';
 import { getPart, SLOT_LABEL } from '@/constants/parts';
@@ -43,7 +49,25 @@ import {
 import type { FrameReport } from '@/dev/frame-meter';
 import { useOpeningPrefs } from '@/hooks/use-opening-prefs';
 import { useTheme } from '@/hooks/use-theme';
-import { burstHaptic, createSfx, landHaptic, revealSfx, shakeHaptic, type Sfx } from '@/utils/feedback';
+import {
+  BLACKOUT,
+  CHARGE_MS,
+  chargeHaptic,
+  chargeLevel,
+  lightningSchedule,
+  reelTickAllowed,
+  shakeSwings,
+  type Flicker,
+} from '@/utils/box-effects';
+import {
+  burstHaptic,
+  buzz,
+  createSfx,
+  landHaptic,
+  revealSfx,
+  tickHaptic,
+  type Sfx,
+} from '@/utils/feedback';
 import { describeReward } from '@/utils/rewards-ui';
 
 // Development only: lets the Garage's test boxes hold a chosen rarity. Not bundled in release builds.
@@ -58,29 +82,32 @@ const useMeter: (active: boolean) => { reset(): void; read(): FrameReport } | nu
     require('@/dev/frame-meter').useFrameMeter
   : () => null;
 
-const SHAKE_MS = 1000;
-const BURST_MS = 380;
-/**
- * Tick sounds closer together than this are skipped. Sound starts run on the same thread that draws
- * the screen. (There are no haptics on the ticks: they were firing about 11 times a second during
- * the fast part of the spin, and that is what made it stutter. Haptics are kept for the burst and
- * for the landing.)
- */
-const MIN_SOUND_GAP_MS = 150;
+/** How long the lid-blast, the beam of light, and the quick zoom take. */
+const BLAST_MS = 800;
+/** From letting go to the reel starting to spin. The reel warms up (draws every card once) in it. */
+const BLAST_TO_SPIN_MS = 900;
 /** How long after the reel appears before it starts to spin. */
 const SPIN_DELAY_MS = 170;
-const BOX_WIDTH = 190;
+/**
+ * Tick sounds closer together than this are skipped. Sound starts run on the same thread that draws
+ * the screen. Haptic ticks are rationed separately (see reelTickAllowed): only once the reel has
+ * slowed, about four a second at most, because firing one per card made the fast part stutter.
+ */
+const MIN_SOUND_GAP_MS = 150;
+/** The stage is as tall as this; the reel sits in the middle of it. */
+const STAGE_H = 360;
+const REEL_H = CARD_H + 52;
 
-type Stage = 'loading' | 'missing' | 'closed' | 'shaking' | 'bursting' | 'spinning' | 'landed' | 'revealed';
+type Stage = 'loading' | 'missing' | 'closed' | 'charging' | 'bursting' | 'spinning' | 'landed' | 'revealed';
 
 /** One soft pulse of color over the screen, never a strobe. */
 function FlashLayer({ color, trigger, strength }: { color: string; trigger: number; strength: number }) {
   const opacity = useSharedValue(0);
   useEffect(() => {
     if (trigger <= 0) return;
-    opacity.value = withSequence(withTiming(strength, { duration: 110 }), withTiming(0, { duration: 800 }));
+    opacity.set(withSequence(withTiming(strength, { duration: 110 }), withTiming(0, { duration: 800 })));
   }, [trigger, strength, opacity]);
-  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const style = useAnimatedStyle(() => ({ opacity: opacity.get() }));
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: color }, style]} />;
 }
 
@@ -101,15 +128,24 @@ function PaintSwatch({ paintId }: { paintId: string }) {
 }
 
 /**
- * Opening a box, like a case opening. Tap the box: it shakes harder and harder, then bursts open
- * with a strong haptic. A reel of item cards spins past a center marker and eases out over about
- * four seconds, with a soft tick sound as cards pass (no haptic on each tick). It stops on the
- * reward. The reward was decided (and saved) before the spin, using the real odds: the reel is only
- * made to land on it. The winner pops, the screen gives one soft flash of its rarity color, and
- * particles burst out (gold gets more, a longer haptic, and a pause). Then the item is shown big.
+ * Opening a box, like a case opening, and the one loud screen in the app.
  *
- * Skip jumps to the reveal. Quick opening (in Settings) and Reduce Motion skip the show entirely.
- * The speaker button mutes the sounds. Nothing here costs anything: boxes are only ever earned.
+ *  1. Stage: the box floats under a spotlight in a dark garage, light rays turning behind it.
+ *  2. Charge: press and hold the box. It rattles harder, light leaks from the seam, sparks fly, and
+ *     the haptics build. Let go (or wait until it is full) and the lid blasts off under a beam of
+ *     light, with a quick zoom.
+ *  3. Reel: glossy cards spin past a glowing marker, easing out over about five seconds, sliding a
+ *     hair past the winner and settling back. Soft tick sounds throughout; haptic ticks only once
+ *     the reel has slowed.
+ *  4. Reveal: a shockwave ring and confetti in the rarity's color. Epic adds purple lightning and a
+ *     small shake. Legendary goes black for a beat, then a slow-motion gold explosion with gold rain
+ *     and a long haptic. Cars turn on a turntable and flash their headlights.
+ *
+ * The reward was decided (and saved) before any of that, using the real odds: the reel is only made
+ * to land on it. Skip jumps to the reveal. Quick opening (in Settings) and Reduce Motion skip the
+ * show entirely, and a plain Open button works without holding. The speaker button mutes sounds.
+ * Nothing here costs anything: boxes are only ever earned. Light flashes stay under three a second
+ * and below full brightness (see src/utils/box-effects.ts, which is tested).
  */
 export default function OpenBoxScreen() {
   const db = useSQLiteContext();
@@ -127,27 +163,47 @@ export default function OpenBoxScreen() {
   const [reel, setReel] = useState<{ cards: Reward[]; winnerIndex: number; landing: number } | null>(null);
   const [popped, setPopped] = useState(false);
   const [flash, setFlash] = useState(0);
-  const [boxBurst, setBoxBurst] = useState(0);
-  const [stowed, setStowed] = useState(false);
+  const [fx, setFx] = useState(0);
+  const [lightning, setLightning] = useState(0);
+  const [flickers, setFlickers] = useState<Flicker[]>([]);
+  const [go, setGo] = useState(false);
+  const [report, setReport] = useState<FrameReport | null>(null);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastSound = useRef(0);
+  const lastTickHaptic = useRef(0);
   const landedSound = useRef(false);
   const sfx = useRef<ReturnType<typeof createSfx> | null>(null);
   const soundOn = useRef(true);
+  const opening = useRef(false);
+  const held = useRef<{ start: number; timer: ReturnType<typeof setTimeout> | null } | null>(null);
   useEffect(() => {
     soundOn.current = prefs.sound;
   });
 
-  const shake = useSharedValue(0);
-  const boxScale = useSharedValue(1);
-  const pop = useSharedValue(0);
-  const drive = useSharedValue(0);
-  // A plain screen-colored cover over the reel until the spin starts. It fades away at the start.
+  // Animation values, all on the UI thread.
+  const clock = useSharedValue(0); // seconds, drives the floating, the rays, the rattle, the sparks
+  const charge = useSharedValue(0);
+  const blast = useSharedValue(0);
+  const kick = useSharedValue(0);
+  const zoom = useSharedValue(1);
+  const afterglow = useSharedValue(0);
+  const screenShake = useSharedValue(0);
+  const blackout = useSharedValue(0);
+  // The stage canvas sits over the reel as a cover until the spin starts, then fades away.
   const coverOpacity = useSharedValue(1);
-  const [go, setGo] = useState(false);
+
   const meter = useMeter(go && (stage === 'spinning' || stage === 'landed'));
-  const [report, setReport] = useState<FrameReport | null>(null);
+
+  // The clock runs while the stage is on screen, except during the spin, when the reel gets all the
+  // attention (and all of the drawing), and when Reduce Motion is on (then the stage holds still).
+  const frame = useFrameCallback((info) => {
+    clock.set(info.timeSinceFirstFrame / 1000);
+  }, false);
+  const clockRuns = !reducedMotion && (stage === 'closed' || stage === 'charging' || stage === 'bursting' || stage === 'landed');
+  useEffect(() => {
+    frame.setActive(clockRuns);
+  }, [frame, clockRuns]);
 
   function play(name: Sfx) {
     if (soundOn.current) sfx.current?.play(name);
@@ -176,9 +232,11 @@ export default function OpenBoxScreen() {
       setStage(!current ? 'missing' : current.openedAt ? 'revealed' : 'closed');
     })();
     const pending = timers.current;
+    const holding = held;
     return () => {
       active = false;
       pending.forEach(clearTimeout);
+      if (holding.current?.timer) clearTimeout(holding.current.timer);
       sfx.current?.release();
       sfx.current = null;
     };
@@ -188,10 +246,14 @@ export default function OpenBoxScreen() {
   const look = reward ? describeReward(reward) : null;
   const gold = look?.rarity === 'legendary' || look?.rarity === 'golden';
   const waitingDuplicate = !!box?.result?.duplicate && !box.resolvedAt;
+  const photo = box ? BOX_PHOTOS[box.type] : null;
 
   function showReveal() {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    // If the screen was dark (the Legendary beat), bring it back gently rather than cutting.
+    cancelAnimation(blackout);
+    blackout.set(withTiming(0, { duration: 200 }));
     setStage('revealed');
   }
 
@@ -204,8 +266,10 @@ export default function OpenBoxScreen() {
     showReveal();
   }
 
-  async function open() {
-    if (stage !== 'closed' || busy) return;
+  /** Decides the reward (saved first), then plays the blast and the reel. */
+  async function openAndBlast() {
+    if (opening.current) return;
+    opening.current = true;
     setBusy(true);
     try {
       // The reward is decided and saved first. Everything after this only shows it.
@@ -225,65 +289,126 @@ export default function OpenBoxScreen() {
         return;
       }
 
-      // 1. The box shakes harder and harder. (Meanwhile the sounds are warmed up silently, so the
-      // first one doesn't start cold in the middle of the spin.)
+      // 2. The lid blasts open under a beam of light, with a quick zoom. (Meanwhile the reel warms
+      // up out of sight and the sounds are warmed up silently, so nothing starts cold mid-spin.)
       if (soundOn.current) sfx.current?.warmUp();
-      setStage('shaking');
-      boxScale.value = withTiming(1.1, { duration: SHAKE_MS, easing: Easing.in(Easing.quad) });
-      const swings = [3, -3, 5, -5, 7, -7, 9, -9, 11, -11, 13, -13, 15, -15, 0];
-      shake.value = withSequence(...swings.map((a, i) => withTiming(a, { duration: 74 - i * 1.5 })));
-      [0, 190, 380, 540, 680, 800, 900].forEach((at, i, all) => later(at, () => shakeHaptic(i / (all.length - 1))));
-
-      // 2. It bursts open.
-      later(SHAKE_MS, () => {
-        setStage('bursting');
-        setBoxBurst(1);
-        play('open');
-        burstHaptic();
-        pop.value = withTiming(1, { duration: BURST_MS, easing: Easing.out(Easing.cubic) });
-        boxScale.value = withTiming(1.22, { duration: BURST_MS, easing: Easing.out(Easing.cubic) });
-      });
+      setStage('bursting');
+      charge.set(withTiming(1, { duration: 150 }));
+      blast.set(withTiming(1, { duration: BLAST_MS, easing: Easing.out(Easing.cubic) }));
+      kick.set(withSequence(withTiming(8, { duration: 60 }), withTiming(0, { duration: 260 })));
+      zoom.set(
+        withSequence(
+          withTiming(1.14, { duration: 130, easing: Easing.out(Easing.quad) }),
+          withTiming(1, { duration: 420, easing: Easing.inOut(Easing.quad) }),
+        ),
+      );
+      play('open');
+      burstHaptic();
 
       // 3. The reel spins.
-      // The screen changes first (the box goes, the cover fades) and the spin starts a moment
-      // later. Changing the screen costs a few frames, and they shouldn't be the spin's first ones.
-      later(SHAKE_MS + BURST_MS, () => {
+      // The screen changes first (the stage cover fades) and the spin starts a moment later.
+      // Changing the screen costs a few frames, and they shouldn't be the spin's first ones.
+      later(BLAST_TO_SPIN_MS, () => {
         setStage('spinning');
-        coverOpacity.value = withTiming(0, { duration: 220 });
+        coverOpacity.set(withTiming(0, { duration: 220 }));
       });
-      later(SHAKE_MS + BURST_MS + SPIN_DELAY_MS, () => {
+      later(BLAST_TO_SPIN_MS + SPIN_DELAY_MS, () => {
         meter?.reset();
         setGo(true);
       });
     } catch {
+      opening.current = false;
       Alert.alert("Couldn't open that box", 'Please try again.');
     } finally {
       setBusy(false);
     }
   }
 
-  function onTick() {
-    // Sound only. At full speed the ticks blur into a rattle anyway, and each sound start is work
-    // on the thread that draws the screen, so they are spaced out.
+  /** The buzzing while the box is held: faster and firmer as it fills, and it opens when full. */
+  function chargeLoop() {
+    const current = held.current;
+    if (!current) return;
+    const level = chargeLevel(Date.now() - current.start);
+    if (level >= 1) {
+      release();
+      return;
+    }
+    const { gapMs, strength } = chargeHaptic(level);
+    buzz(strength);
+    current.timer = setTimeout(chargeLoop, gapMs);
+  }
+
+  /** Finger down on the box: start charging. */
+  function startCharge() {
+    if (stage !== 'closed' || opening.current || held.current) return;
+    if (prefs.quick || reducedMotion) {
+      void openAndBlast();
+      return;
+    }
+    if (soundOn.current) sfx.current?.warmUp();
+    setStage('charging');
+    held.current = { start: Date.now(), timer: null };
+    charge.set(withTiming(1, { duration: CHARGE_MS, easing: Easing.in(Easing.quad) }));
+    chargeLoop();
+  }
+
+  /** Finger up (or the box is full): the lid blasts. */
+  function release() {
+    const current = held.current;
+    if (!current) return;
+    held.current = null;
+    if (current.timer) clearTimeout(current.timer);
+    void openAndBlast();
+  }
+
+  function onTick(_cardIndex: number, progress: number) {
+    // Sound spaced out, and haptics only once the reel has slowed down (and then rationed).
     const now = Date.now();
     if (now - lastSound.current >= MIN_SOUND_GAP_MS) {
       lastSound.current = now;
       play('tick');
     }
+    if (reelTickAllowed(progress, now - lastTickHaptic.current)) {
+      lastTickHaptic.current = now;
+      tickHaptic();
+    }
   }
 
   function onLanded() {
     if (!look) return;
-    // 4. The winner pops, the screen flashes its color once, particles burst out.
     if (meter) setReport(meter.read());
     setStage('landed');
     setPopped(true);
-    setFlash((n) => n + 1);
+    afterglow.set(withTiming(0.8, { duration: 400 }));
     landedSound.current = true;
+
+    if (gold) {
+      // Legendary: everything fades to black for a beat, then a slow-motion gold explosion.
+      blackout.set(withTiming(1, { duration: BLACKOUT.fadeInMs }));
+      later(BLACKOUT.fadeInMs + BLACKOUT.holdMs, () => {
+        setFx((n) => n + 1);
+        play(revealSfx(look.rarity));
+        landHaptic(look.rarity);
+        blackout.set(withTiming(0, { duration: BLACKOUT.fadeOutMs }));
+      });
+      later(BLACKOUT.fadeInMs + BLACKOUT.holdMs + 3900, showReveal);
+      return;
+    }
+
+    // Common to Epic: a shockwave ring and confetti in the rarity color.
+    setFx((n) => n + 1);
     play(revealSfx(look.rarity));
     landHaptic(look.rarity);
-    // Gold gets a longer pause before the reveal.
-    later(gold ? 1100 : 550, showReveal);
+    if (look.rarity === 'epic') {
+      // Epic: purple lightning flickers and the screen shakes a little.
+      setFlickers(lightningSchedule());
+      setLightning((n) => n + 1);
+      screenShake.set(withSequence(...shakeSwings().map((a) => withTiming(a, { duration: 45 }))));
+      later(1900, showReveal);
+    } else {
+      setFlash((n) => n + 1); // one soft pulse of the rarity color
+      later(900, showReveal);
+    }
   }
 
   async function decide(choice: 'keep' | 'trade') {
@@ -299,327 +424,355 @@ export default function OpenBoxScreen() {
     }
   }
 
-  // 5. After the reveal, the car drives into the garage (once any duplicate choice is made).
   const isCar = reward?.kind === 'car';
-  const canStow = stage === 'revealed' && isCar && !waitingDuplicate;
-  useEffect(() => {
-    if (!canStow || stowed) return;
-    const t = setTimeout(
-      () => {
-        setStowed(true);
-        drive.value = reducedMotion ? 1 : withTiming(1, { duration: 800, easing: Easing.in(Easing.cubic) });
-      },
-      reducedMotion ? 0 : 1100,
-    );
-    return () => clearTimeout(t);
-  }, [canStow, stowed, reducedMotion, drive]);
 
-  const shakeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shake.value }, { scale: boxScale.value }],
-    opacity: 1 - pop.value * 0.55,
-  }));
-  const lidStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -pop.value * 40 }, { rotate: `${-pop.value * 18}deg` }],
-    opacity: 1 - pop.value * 0.7,
-  }));
-  const driveStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: drive.value * 320 }, { scale: 1 - drive.value * 0.35 }],
-    opacity: 1 - drive.value,
-  }));
-
+  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.get() }] }));
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: screenShake.get() }] }));
   const coverStyle = useAnimatedStyle(() => ({ opacity: coverOpacity.get() }));
+  const blackoutStyle = useAnimatedStyle(() => ({ opacity: blackout.get() }));
 
-  const showingBox = stage === 'closed' || stage === 'shaking' || stage === 'bursting';
+  const showingBox = stage === 'closed' || stage === 'charging' || stage === 'bursting';
   const reelVisible = stage === 'spinning' || stage === 'landed';
-  const animating = stage === 'shaking' || stage === 'bursting' || stage === 'spinning' || stage === 'landed';
+  const animating = stage === 'charging' || stage === 'bursting' || stage === 'spinning' || stage === 'landed';
+  const sceneColor = popped && look ? look.color : (photo?.color ?? '#6FA8F0');
 
   return (
     <>
-      <Screen>
-        <View style={styles.header}>
-          <BackLink />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={prefs.sound ? 'Mute sound effects' : 'Turn sound effects on'}
-            accessibilityState={{ selected: !prefs.sound }}
-            onPress={() => prefs.setSound(!prefs.sound)}
-            hitSlop={8}
-            style={styles.mute}>
-            <SymbolView
-              name={prefs.sound ? 'speaker.wave.2.fill' : 'speaker.slash.fill'}
-              tintColor={prefs.sound ? theme.text : theme.textSecondary}
-              size={22}
-            />
-          </Pressable>
-        </View>
-        <ThemedText type="subtitle">{box ? BOX_LABEL[box.type] : 'Box'}</ThemedText>
+      <Animated.View style={[styles.flex, shakeStyle]}>
+        <Screen>
+          <View style={styles.header}>
+            <BackLink />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={prefs.sound ? 'Mute sound effects' : 'Turn sound effects on'}
+              accessibilityState={{ selected: !prefs.sound }}
+              onPress={() => prefs.setSound(!prefs.sound)}
+              hitSlop={8}
+              style={styles.mute}>
+              <SymbolView
+                name={prefs.sound ? 'speaker.wave.2.fill' : 'speaker.slash.fill'}
+                tintColor={prefs.sound ? theme.text : theme.textSecondary}
+                size={22}
+              />
+            </Pressable>
+          </View>
+          <ThemedText type="subtitle">{box ? BOX_LABEL[box.type] : 'Box'}</ThemedText>
 
-        {stage === 'missing' && <ThemedText>That box isn&apos;t here anymore.</ThemedText>}
+          {stage === 'missing' && <ThemedText>That box isn&apos;t here anymore.</ThemedText>}
 
-        {(showingBox || reelVisible) && box && (
-          <>
-            {showingBox && (
-              <ThemedText themeColor="textSecondary">
-                {stage === 'closed' ? 'You earned this one. There is no cost to open it.' : 'Opening…'}
-              </ThemedText>
-            )}
-            <View style={styles.stage}>
-              {/* The reel is built as soon as the reward is known and kept covered during the
-                  shake, so its pictures are loaded and every card is drawn once (the warm-up
-                  sweep) before the spin starts. Building 60 cards, or drawing each for the first
-                  time, mid-spin is what made it stutter. It is covered rather than made see-through
-                  because a see-through group of 60 cards is itself slow to draw. */}
-              {reel && (
-                <>
-                  <View pointerEvents="none" style={[styles.reelLayer, { width: windowWidth }]}>
-                    <CaseReel
-                      cards={reel.cards}
-                      winnerIndex={reel.winnerIndex}
-                      width={windowWidth}
-                      landing={reel.landing}
-                      durationMs={REEL_SPIN_MS}
-                      warmUp={stage === 'shaking' || stage === 'bursting'}
-                      running={reelVisible && go}
-                      popped={popped}
-                      gold={gold}
-                      onTick={onTick}
-                      onLanded={onLanded}
-                    />
-                  </View>
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[styles.reelLayer, styles.reelCover, { width: windowWidth, backgroundColor: theme.background }, coverStyle]}
-                  />
-                </>
-              )}
-
+          {(showingBox || reelVisible) && box && photo && (
+            <>
               {showingBox && (
-                <>
+                <ThemedText themeColor="textSecondary">
+                  {stage === 'closed'
+                    ? 'You earned this one, so there is no cost to open it. Press and hold the box to charge it, then let go.'
+                    : stage === 'charging'
+                      ? 'Charging… let go to open.'
+                      : 'Opening…'}
+                </ThemedText>
+              )}
+              <View style={styles.stage}>
+                {/* Everything on the stage is full screen width (the screen's side padding is
+                    cancelled). From the bottom up: the scenery, the reel, and the stage again as a
+                    cover with the box on it. The reel is built as soon as the reward is known and
+                    kept under the cover, so its pictures are loaded and every card is drawn once
+                    (the warm-up sweep) before the spin starts. Building 60 cards, or drawing each
+                    for the first time, mid-spin is what made it stutter. The cover is one flat
+                    canvas that fades as a whole; a see-through group of 60 cards is slow to draw. */}
+                <Animated.View
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={[styles.layer, { width: windowWidth, height: STAGE_H }, zoomStyle]}>
+                  {reel && (
+                    <>
+                      <SceneryCanvas width={windowWidth} height={STAGE_H} color={sceneColor} clock={clock} glow={afterglow} />
+                      <View style={[styles.reelLayer, { width: windowWidth }]}>
+                        <CaseReel
+                          cards={reel.cards}
+                          winnerIndex={reel.winnerIndex}
+                          width={windowWidth}
+                          landing={reel.landing}
+                          durationMs={REEL_SPIN_MS}
+                          warmUp={stage === 'bursting'}
+                          running={reelVisible && go}
+                          popped={popped}
+                          onTick={onTick}
+                          onLanded={onLanded}
+                        />
+                      </View>
+                    </>
+                  )}
+                  <Animated.View style={[StyleSheet.absoluteFill, coverStyle]}>
+                    <BoxStage
+                      type={box.type}
+                      width={windowWidth}
+                      height={STAGE_H}
+                      color={photo.color}
+                      clock={clock}
+                      glow={charge}
+                      blast={blast}
+                      shake={kick}
+                    />
+                  </Animated.View>
+                  {stage === 'landed' && look && (
+                    <View style={StyleSheet.absoluteFill}>
+                      <RevealFx width={windowWidth} height={STAGE_H} color={look.color} gold={gold} trigger={fx} />
+                    </View>
+                  )}
+                </Animated.View>
+
+                {showingBox && (
                   <Pressable
-                    disabled={stage !== 'closed' || busy}
-                    onPress={open}
+                    disabled={(stage !== 'closed' && stage !== 'charging') || busy}
+                    onPressIn={startCharge}
+                    onPressOut={release}
+                    onPress={() => {
+                      // A screen reader's double tap arrives as a plain press, with no hold.
+                      if (stage === 'closed' && !held.current) void openAndBlast();
+                    }}
                     accessibilityRole="button"
-                    accessibilityLabel={`${BOX_LABEL[box.type]}. Tap to open.`}>
-                    <Animated.View style={shakeStyle}>
-                      <BoxArt type={box.type} width={BOX_WIDTH} lidStyle={lidStyle} />
-                    </Animated.View>
-                  </Pressable>
-                  <ParticleBurst color={theme.accent} gold={false} trigger={boxBurst} />
+                    accessibilityLabel={`${BOX_LABEL[box.type]}. Press and hold to charge, let go to open.`}
+                    accessibilityHint="A quick tap opens it right away"
+                    style={styles.boxHit}
+                  />
+                )}
+              </View>
+              {stage === 'closed' && (
+                <>
+                  <Button
+                    label="Open"
+                    onPress={() => void openAndBlast()}
+                    accessibilityHint="Opens the box right away, without holding"
+                  />
+                  {prefs.loaded && (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={prefs.quick ? 'Quick opening is on. Turn it off.' : 'Quick opening is off. Turn it on.'}
+                      onPress={() => prefs.setQuick(!prefs.quick)}
+                      hitSlop={8}
+                      style={styles.link}>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.underline}>
+                        {prefs.quick ? 'Quick opening is on (turn off)' : 'Skip the show with quick opening'}
+                      </ThemedText>
+                    </Pressable>
+                  )}
                 </>
               )}
-            </View>
-            {stage === 'closed' && (
-              <>
-                <Button label="Open" onPress={open} accessibilityHint="Opens the box and shows what is inside" />
-                {prefs.loaded && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={prefs.quick ? 'Quick opening is on. Turn it off.' : 'Quick opening is off. Turn it on.'}
-                    onPress={() => prefs.setQuick(!prefs.quick)}
-                    hitSlop={8}
-                    style={styles.link}>
-                    <ThemedText type="small" themeColor="textSecondary" style={styles.underline}>
-                      {prefs.quick ? 'Quick opening is on (turn off)' : 'Skip the show with quick opening'}
-                    </ThemedText>
-                  </Pressable>
-                )}
-              </>
-            )}
-          </>
-        )}
+            </>
+          )}
 
-        {stage === 'landed' && look && (
-          <Animated.View entering={FadeIn.duration(250).reduceMotion(ReduceMotion.System)}>
-            <ThemedText type="title" style={[styles.centerText, { color: look.color }]} accessibilityLiveRegion="polite">
-              {look.rarityLabel}
-            </ThemedText>
-          </Animated.View>
-        )}
-
-        {animating && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Skip the animation"
-            onPress={skip}
-            hitSlop={8}
-            style={styles.link}>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.underline}>
-              Skip
-            </ThemedText>
-          </Pressable>
-        )}
-
-        {stage === 'revealed' && box && look && reward && (
-          <Animated.View entering={FadeIn.duration(350).reduceMotion(ReduceMotion.System)} style={styles.reveal}>
-            <View
-              style={[styles.rarityBar, { borderColor: look.color }]}
-              accessible
-              accessibilityLabel={look.rarityLabel}>
-              <ThemedText type="smallBold" style={{ color: look.color }}>
+          {stage === 'landed' && look && (
+            <Animated.View entering={FadeIn.duration(250).reduceMotion(ReduceMotion.System)}>
+              <ThemedText type="title" style={[styles.centerText, { color: look.color }]} accessibilityLiveRegion="polite">
                 {look.rarityLabel}
               </ThemedText>
-            </View>
+            </Animated.View>
+          )}
 
-            {reward.kind === 'car' && (
-              <>
-                <View style={[styles.carBig, { minHeight: 290 }]}>
-                  {!(stowed && reducedMotion) && (
-                    <Animated.View style={driveStyle}>
-                      <Car carId={reward.carId} width={170} height={280} />
-                    </Animated.View>
-                  )}
-                </View>
-                <ThemedText type="title" style={styles.centerText}>
-                  {getCar(reward.carId).name}
-                </ThemedText>
-                <ThemedText themeColor="textSecondary" style={styles.centerText}>
-                  {RARITY_LABEL[reward.rarity]} · {getCar(reward.carId).style}
-                </ThemedText>
-              </>
-            )}
-
-            {reward.kind === 'part' && (
-              <>
-                <Animated.View
-                  entering={SlideInRight.duration(550).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
-                  style={styles.center}>
-                  <PartTile slot={getPart(reward.partId)!.slot} rarity={reward.rarity} size={150} />
-                </Animated.View>
-                <ThemedText type="title" style={styles.centerText}>
-                  {getPart(reward.partId)!.name}
-                </ThemedText>
-                <ThemedText themeColor="textSecondary" style={styles.centerText}>
-                  {RARITY_LABEL[reward.rarity]} {SLOT_LABEL[getPart(reward.partId)!.slot].toLowerCase()} part. Put it on a
-                  car in the Mod shop.
-                </ThemedText>
-              </>
-            )}
-
-            {reward.kind === 'paint' && (
-              <>
-                <View style={styles.center}>
-                  <PaintSwatch paintId={reward.paintId} />
-                </View>
-                <ThemedText type="title" style={styles.centerText}>
-                  {getPaint(reward.paintId)?.name}
-                </ThemedText>
-                <ThemedText themeColor="textSecondary" style={styles.centerText}>
-                  {box.result?.refund
-                    ? `You already had this color-shift paint, so you got ${box.result.refund} tokens instead.`
-                    : 'A color-shift paint. Put it on any of your cars for free in the Mod shop.'}
-                </ThemedText>
-              </>
-            )}
-
-            {reward.kind === 'golden' && (
-              <>
-                <View style={styles.center}>
-                  <BoxArt type="golden" width={170} />
-                </View>
-                <ThemedText type="title" style={styles.centerText}>
-                  A Golden Crate
-                </ThemedText>
-                <ThemedText themeColor="textSecondary" style={styles.centerText}>
-                  It was inside. Golden Crates always hold something Epic or better.
-                </ThemedText>
-              </>
-            )}
-
-            {waitingDuplicate && (
-              <View style={[styles.choice, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-                <ThemedText type="headline">You already have this car</ThemedText>
-                <ThemedText themeColor="textSecondary">
-                  Keep it as a separate copy that you can paint and mod on its own, or trade it for a Glovebox.
-                </ThemedText>
-                <Button
-                  label="Keep a separate copy"
-                  onPress={() => decide('keep')}
-                  accessibilityHint="Adds a second copy to your garage that you can mod on its own"
-                />
-                <Button
-                  label="Trade for a Glovebox"
-                  variant="secondary"
-                  onPress={() => decide('trade')}
-                  accessibilityHint="Gives you a Glovebox instead of the car"
-                />
-              </View>
-            )}
-
-            {!waitingDuplicate && isCar && box.result?.choice === 'trade' && (
-              <ThemedText themeColor="textSecondary" style={styles.centerText}>
-                Traded for a Glovebox. It&apos;s waiting in your garage.
+          {animating && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Skip the animation"
+              onPress={skip}
+              hitSlop={8}
+              style={styles.link}>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.underline}>
+                Skip
               </ThemedText>
-            )}
-            {!waitingDuplicate && isCar && box.result?.choice !== 'trade' && (stowed || reducedMotion) && (
-              <Animated.View entering={FadeIn.duration(400).reduceMotion(ReduceMotion.System)}>
+            </Pressable>
+          )}
+
+          {stage === 'revealed' && box && look && reward && (
+            <Animated.View entering={FadeIn.duration(350).reduceMotion(ReduceMotion.System)} style={styles.reveal}>
+              <View style={styles.center} accessible accessibilityLabel={look.rarityLabel}>
+                <Shimmer style={[styles.rarityBar, { borderColor: look.color }]}>
+                  <ThemedText type="smallBold" style={{ color: look.color }}>
+                    {look.rarityLabel}
+                  </ThemedText>
+                </Shimmer>
+              </View>
+
+              {reward.kind === 'car' && (
+                <>
+                  <View style={styles.center}>
+                    <Turntable carId={reward.carId} color={look.color} size={300} />
+                  </View>
+                  <View style={styles.center}>
+                    <Shimmer style={styles.nameBand} delayMs={600}>
+                      <ThemedText type="title" style={styles.centerText}>
+                        {getCar(reward.carId).name}
+                      </ThemedText>
+                    </Shimmer>
+                  </View>
+                  <ThemedText themeColor="textSecondary" style={styles.centerText}>
+                    {RARITY_LABEL[reward.rarity]} · {getCar(reward.carId).style}
+                  </ThemedText>
+                </>
+              )}
+
+              {reward.kind === 'part' && (
+                <>
+                  <Animated.View
+                    entering={SlideInRight.duration(550).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
+                    style={styles.center}>
+                    <PartTile slot={getPart(reward.partId)!.slot} rarity={reward.rarity} size={150} />
+                  </Animated.View>
+                  <View style={styles.center}>
+                    <Shimmer style={styles.nameBand} delayMs={600}>
+                      <ThemedText type="title" style={styles.centerText}>
+                        {getPart(reward.partId)!.name}
+                      </ThemedText>
+                    </Shimmer>
+                  </View>
+                  <ThemedText themeColor="textSecondary" style={styles.centerText}>
+                    {RARITY_LABEL[reward.rarity]} {SLOT_LABEL[getPart(reward.partId)!.slot].toLowerCase()} part. Put it on
+                    a car in the Mod shop.
+                  </ThemedText>
+                </>
+              )}
+
+              {reward.kind === 'paint' && (
+                <>
+                  <View style={styles.center}>
+                    <PaintSwatch paintId={reward.paintId} />
+                  </View>
+                  <View style={styles.center}>
+                    <Shimmer style={styles.nameBand} delayMs={600}>
+                      <ThemedText type="title" style={styles.centerText}>
+                        {getPaint(reward.paintId)?.name}
+                      </ThemedText>
+                    </Shimmer>
+                  </View>
+                  <ThemedText themeColor="textSecondary" style={styles.centerText}>
+                    {box.result?.refund
+                      ? `You already had this color-shift paint, so you got ${box.result.refund} tokens instead.`
+                      : 'A color-shift paint. Put it on any of your cars for free in the Mod shop.'}
+                  </ThemedText>
+                </>
+              )}
+
+              {reward.kind === 'golden' && (
+                <>
+                  <View style={styles.center}>
+                    <BoxArt type="golden" width={170} />
+                  </View>
+                  <View style={styles.center}>
+                    <Shimmer style={styles.nameBand} delayMs={600}>
+                      <ThemedText type="title" style={styles.centerText}>
+                        A Golden Crate
+                      </ThemedText>
+                    </Shimmer>
+                  </View>
+                  <ThemedText themeColor="textSecondary" style={styles.centerText}>
+                    It was inside. Golden Crates always hold something Epic or better.
+                  </ThemedText>
+                </>
+              )}
+
+              {waitingDuplicate && (
+                <View style={[styles.choice, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+                  <ThemedText type="headline">You already have this car</ThemedText>
+                  <ThemedText themeColor="textSecondary">
+                    Keep it as a separate copy that you can paint and mod on its own, or trade it for a Glovebox.
+                  </ThemedText>
+                  <Button
+                    label="Keep a separate copy"
+                    onPress={() => decide('keep')}
+                    accessibilityHint="Adds a second copy to your garage that you can mod on its own"
+                  />
+                  <Button
+                    label="Trade for a Glovebox"
+                    variant="secondary"
+                    onPress={() => decide('trade')}
+                    accessibilityHint="Gives you a Glovebox instead of the car"
+                  />
+                </View>
+              )}
+
+              {!waitingDuplicate && isCar && box.result?.choice === 'trade' && (
+                <ThemedText themeColor="textSecondary" style={styles.centerText}>
+                  Traded for a Glovebox. It&apos;s waiting in your garage.
+                </ThemedText>
+              )}
+              {!waitingDuplicate && isCar && box.result?.choice !== 'trade' && (
                 <ThemedText themeColor="textSecondary" style={styles.centerText} accessibilityLiveRegion="polite">
                   {box.result?.choice === 'keep' ? 'Kept as a separate copy. ' : ''}Added to your garage.
                 </ThemedText>
-              </Animated.View>
-            )}
+              )}
 
-            {report && (
-              <ThemedText type="caption" themeColor="textSecondary" style={styles.centerText}>
-                Reel timing (development only): {report.averageFps} fps on average, worst frame {report.worstMs} ms,{' '}
-                {report.slowFrames} of {report.frames} frames over 25 ms.
-                {report.slowAt.length > 0
-                  ? ` Slow frames, seconds into the spin: ${report.slowAt.map((s) => `${s.at.toFixed(2)}s (${s.ms} ms)`).join(', ')}.`
-                  : ''}
-              </ThemedText>
-            )}
+              {report && (
+                <ThemedText type="caption" themeColor="textSecondary" style={styles.centerText}>
+                  Reel timing (development only): {report.averageFps} fps on average, worst frame {report.worstMs} ms,{' '}
+                  {report.slowFrames} of {report.frames} frames over 25 ms.
+                  {report.slowAt.length > 0
+                    ? ` Slow frames, seconds into the spin: ${report.slowAt.map((s) => `${s.at.toFixed(2)}s (${s.ms} ms)`).join(', ')}.`
+                    : ''}
+                </ThemedText>
+              )}
 
-            {!waitingDuplicate && (
-              <>
-                {reward.kind === 'golden' && (
+              {!waitingDuplicate && (
+                <>
+                  {reward.kind === 'golden' && (
+                    <Button
+                      label="Open the Golden Crate"
+                      onPress={() => {
+                        const crate = others.find((b) => b.type === 'golden' && b.source === `drop:${box.id}`);
+                        if (crate) router.replace({ pathname: '/open-box', params: { id: String(crate.id) } });
+                        else router.back();
+                      }}
+                    />
+                  )}
+                  {others.length > 0 && reward.kind !== 'golden' && (
+                    <Button
+                      label={others.length === 1 ? 'Open the next box' : `Open the next box (${others.length} waiting)`}
+                      variant="secondary"
+                      onPress={() => router.replace({ pathname: '/open-box', params: { id: String(others[0].id) } })}
+                    />
+                  )}
                   <Button
-                    label="Open the Golden Crate"
-                    onPress={() => {
-                      const crate = others.find((b) => b.type === 'golden' && b.source === `drop:${box.id}`);
-                      if (crate) router.replace({ pathname: '/open-box', params: { id: String(crate.id) } });
-                      else router.back();
-                    }}
+                    label="Done"
+                    variant={reward.kind === 'golden' ? 'secondary' : 'primary'}
+                    onPress={() => router.back()}
                   />
-                )}
-                {others.length > 0 && reward.kind !== 'golden' && (
-                  <Button
-                    label={others.length === 1 ? 'Open the next box' : `Open the next box (${others.length} waiting)`}
-                    variant="secondary"
-                    onPress={() => router.replace({ pathname: '/open-box', params: { id: String(others[0].id) } })}
-                  />
-                )}
-                <Button
-                  label="Done"
-                  variant={reward.kind === 'golden' ? 'secondary' : 'primary'}
-                  onPress={() => router.back()}
-                />
-              </>
-            )}
-          </Animated.View>
-        )}
-      </Screen>
+                </>
+              )}
+            </Animated.View>
+          )}
+        </Screen>
+      </Animated.View>
 
-      {/* One soft pulse of the rarity color over the whole screen when the reel stops. */}
-      {look && <FlashLayer color={look.color} trigger={flash} strength={gold ? 0.42 : 0.3} />}
+      {/* One soft pulse of the rarity color over the whole screen when the reel stops (Common and
+          Rare; Epic and Legendary have their own effects). */}
+      {look && <FlashLayer color={look.color} trigger={flash} strength={0.3} />}
+
+      {/* Epic: purple lightning. */}
+      {look?.rarity === 'epic' && <LightningLayer width={windowWidth} height={STAGE_H * 2} flickers={flickers} trigger={lightning} />}
+
+      {/* Legendary: the screen goes dark for a beat. It never covers the crisis button, which lives
+          above every screen, and it lets touches through. */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.black, blackoutStyle]} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   mute: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
-  stage: { alignItems: 'center', justifyContent: 'center', height: 270 },
-  // Full screen width (the screen's side padding is cancelled), centered in the stage.
-  reelLayer: { position: 'absolute', left: -Spacing.four, top: 43 },
-  // The same size as the reel's viewport (cards are 132 high, plus 26 above and below).
-  reelCover: { height: 184 },
+  stage: { alignItems: 'center', justifyContent: 'center', height: STAGE_H },
+  // Full screen width (the screen's side padding is cancelled).
+  layer: { position: 'absolute', left: -Spacing.four, top: 0 },
+  reelLayer: { position: 'absolute', left: 0, top: (STAGE_H - REEL_H) / 2 },
+  boxHit: { position: 'absolute', width: 280, height: 260, alignSelf: 'center' },
+  black: { backgroundColor: '#000000' },
   link: { minHeight: 44, justifyContent: 'center', alignSelf: 'center' },
   underline: { textDecorationLine: 'underline' },
   reveal: { gap: Spacing.three },
   center: { alignItems: 'center' },
-  carBig: { alignItems: 'center', justifyContent: 'flex-start' },
   centerText: { textAlign: 'center' },
+  nameBand: { paddingHorizontal: Spacing.four, borderRadius: Radius.chip },
   rarityBar: {
-    alignSelf: 'center',
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
     borderRadius: Radius.chip,

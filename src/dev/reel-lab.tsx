@@ -126,7 +126,6 @@ export function ReelLab() {
             warmUp={!spinning}
             running={spinning}
             popped={false}
-            gold={false}
             plain={config.plain}
             onTick={onTick}
             onLanded={onLanded}
